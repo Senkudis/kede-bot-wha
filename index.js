@@ -176,34 +176,29 @@ client.on('qr', async qr => {
 client.on('ready', () => { console.log('✅ البوت جاهز للعمل'); });
 
 // =================================================================================
-// ===== معالجة الرسائل والأوامر (تم التحديث هنا) ==================================
+// ===== معالجة الرسائل والأوامر (تم التصحيح النهائي هنا) ==========================
 // =================================================================================
 client.on('message_create', async msg => {
-    // تجاهل الرسائل الصادرة من البوت نفسه أو الرسائل بدون محتوى
-    if (msg.fromMe || !msg.body) return;
+    // الخطوة 1: تجاهل الرسائل غير النصية أو الصادرة من البوت نفسه
+    if (typeof msg.body !== 'string' || !msg.body || msg.fromMe) {
+        return;
+    }
 
-    const from = msg.from;
     const body = msg.body.trim();
-    if (!body) return;
-
-    const lowerBody = body.toLowerCase();
+    const from = msg.from;
     const isGroup = from.endsWith('@g.us');
     const authorId = msg.author || from;
 
     // --- نظام النقاط والإحصائيات ---
     if (isGroup) {
-        // الإحصائيات العامة
         data.groupStats[from] = data.groupStats[from] || { messages: {} };
         data.groupStats[from].messages[authorId] = (data.groupStats[from].messages[authorId] || 0) + 1;
-        // الإحصائيات اليومية
         data.dailyStats[from] = data.dailyStats[from] || {};
         data.dailyStats[from][authorId] = (data.dailyStats[from][authorId] || 0) + 1;
-        // نظام النقاط
         data.userProfiles[authorId] = data.userProfiles[authorId] || { points: 0, title: null };
         data.userProfiles[authorId].points += 1;
         saveData();
 
-        // نظام "أنت نار 🔥"
         const now = Date.now();
         recentMessages[authorId] = (recentMessages[authorId] || []).filter(timestamp => now - timestamp < 3600 * 1000);
         recentMessages[authorId].push(now);
@@ -213,16 +208,17 @@ client.on('message_create', async msg => {
         }
     }
 
-    // --- معالجة الأوامر النصية ---
+    // الخطوة 2: استخراج الأمر والمحتوى بطريقة مضمونة
+    const lowerBody = body.toLowerCase();
     const command = lowerBody.split(' ')[0];
     const args = body.substring(command.length).trim();
 
     // --- أوامر الرد على الرسائل ---
     if (msg.hasQuotedMsg) {
         const quotedMsg = await msg.getQuotedMessage();
-        if (lowerBody === 'لخص' && quotedMsg.body.includes('http')) {
+        if (lowerBody === 'لخص' && quotedMsg.body && quotedMsg.body.includes('http')) {
             const url = quotedMsg.body.match(/https?:\/\/[^\s]+/)[0];
-            msg.reply(`جارٍ تلخيص الرابط... ⌛`);
+            await msg.reply(`جارٍ تلخيص الرابط... ⌛`);
             const result = await summarizeUrl(url);
             return msg.reply(result.summary || result.error);
         }
@@ -239,19 +235,19 @@ client.on('message_create', async msg => {
         }
         if (lowerBody === 'ملصق' && quotedMsg.hasMedia && quotedMsg.type === 'image') {
             const media = await quotedMsg.downloadMedia();
-            client.sendMessage(from, media, { sendMediaAsSticker: true, stickerAuthor: "كيدي بوت", stickerName: "ملصقات" });
-            return;
+            return client.sendMessage(from, media, { sendMediaAsSticker: true, stickerAuthor: "كيدي بوت", stickerName: "ملصقات" });
         }
     }
 
     // --- الرد الذكي عند ذكر "كيدي" ---
     if (lowerBody.includes('كيدي')) {
-        const isCommand = ['ذكاء', 'تخيل', 'طقس', 'اقرأ', 'ذكرني'].includes(command);
+        const isCommand = ['اوامر', 'ذكاء', 'تخيل', 'طقس', 'اقرأ', 'ذكرني', 'لخص', 'ميم', 'ملصق', 'نقاطي', 'متجر', 'شراء', 'توب', 'احصائيات', 'نكتة', 'لغز', 'gif'].includes(command);
         if (!isCommand) {
-             msg.react('👋');
+             return msg.react('👋');
         }
     }
 
+    // الخطوة 3: تنفيذ الأوامر
     switch (command) {
         case 'اوامر':
             const commandsText = `
@@ -283,43 +279,39 @@ client.on('message_create', async msg => {
 
         case 'ذكاء':
             if (!args) return msg.reply('يرجى كتابة سؤال بعد كلمة *ذكاء*.');
-            msg.reply('لحظة، أفكر في إجابة... 🤔');
+            await msg.reply('لحظة، أفكر في إجابة... 🤔');
             try {
                 const resp = await axios.post('https://api.openai.com/v1/chat/completions', { model: "gpt-3.5-turbo", messages: [{ role: "user", content: args }] }, { headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` } });
-                msg.reply(resp.data.choices[0].message.content.trim());
+                return msg.reply(resp.data.choices[0].message.content.trim());
             } catch (err) {
-                msg.reply('عذرًا، حدث خطأ أثناء التواصل مع الذكاء الاصطناعي.');
+                return msg.reply('عذرًا، حدث خطأ أثناء التواصل مع الذكاء الاصطناعي.');
             }
-            break;
 
         case 'تخيل':
             if (!args) return msg.reply('يرجى كتابة وصف للصورة بعد كلمة *تخيل*.');
-            msg.reply(`🎨 جارٍ تخيل "${args}"...`);
+            await msg.reply(`🎨 جارٍ تخيل "${args}"...`);
             const imgResult = await generateImage(args);
             if (imgResult.url) {
                 const media = await MessageMedia.fromUrl(imgResult.url, { unsafeMime: true });
-                await client.sendMessage(from, media, { caption: `تفضل: *${args}*` });
+                return client.sendMessage(from, media, { caption: `تفضل: *${args}*` });
             } else {
-                msg.reply(imgResult.error);
+                return msg.reply(imgResult.error);
             }
-            break;
 
         case 'اقرأ':
             if (!args) return msg.reply('يرجى كتابة النص لتحويله إلى صوت بعد كلمة *اقرأ*.');
             const speechResult = await textToSpeech(args);
             if (speechResult.audio) {
                 const audioMedia = new MessageMedia('audio/ogg', speechResult.audio, 'voice.ogg');
-                await client.sendMessage(from, audioMedia, { sendAudioAsVoice: true });
+                return client.sendMessage(from, audioMedia, { sendAudioAsVoice: true });
             } else {
-                msg.reply(speechResult.error);
+                return msg.reply(speechResult.error);
             }
-            break;
 
         case 'طقس':
             if (!args) return msg.reply('يرجى كتابة اسم المدينة بعد كلمة *طقس*.');
             const weatherInfo = await getWeather(args);
-            msg.reply(weatherInfo);
-            break;
+            return msg.reply(weatherInfo);
 
         case 'gif':
             if (!args) return msg.reply('اكتب كلمة للبحث عنها. مثال: `gif ضحك`');
@@ -328,11 +320,10 @@ client.on('message_create', async msg => {
                 if (giphyData.data.length === 0) return msg.reply(`لم أجد أي صور متحركة عن "${args}"`);
                 const randomGif = pickRandom(giphyData.data);
                 const media = await MessageMedia.fromUrl(randomGif.images.original.url, { unsafeMime: true });
-                await client.sendMessage(from, media, { sendVideoAsGif: true });
+                return client.sendMessage(from, media, { sendVideoAsGif: true });
             } catch (error) {
-                msg.reply('حدث خطأ أثناء البحث عن الصور المتحركة.');
+                return msg.reply('حدث خطأ أثناء البحث عن الصور المتحركة.');
             }
-            break;
 
         case 'نقاطي':
             const userProfile = data.userProfiles[authorId] || { points: 0, title: null };

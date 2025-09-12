@@ -1,0 +1,10 @@
+# .gitignore
+    
+# تجاهل ملف متغيرات البيئة
+.env
+    
+# تجاهل مجلد المكتبات المثبتة
+node_modules
+    
+# تجاهل ملفات جلسة whatsapp-web.js
+.wwebjs_auth/

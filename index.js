@@ -1,5 +1,6 @@
 require('dotenv').config();
-const { Client, LocalAuth, MessageMedia, List } = require('whatsapp-web.js');
+// تم تغيير 'List' إلى 'Buttons' هنا
+const { Client, LocalAuth, MessageMedia, Buttons } = require('whatsapp-web.js');
 const fs = require('fs');
 const cron = require('node-cron');
 const path = require('path');
@@ -12,7 +13,7 @@ const Jimp = require('jimp');
 // =================================================================================
 // ===== إعدادات ومفاتيح API (تُقرأ من متغيرات البيئة) ============================
 // =================================================================================
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // تم إصلاح الخطأ الإملائي هنا
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const IMGBB_KEY = process.env.IMGBB_KEY;
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY;
@@ -175,7 +176,7 @@ client.on('qr', async qr => {
 client.on('ready', () => { console.log('✅ البوت جاهز للعمل'); });
 
 // =================================================================================
-// ===== معالجة الرسائل والأوامر (تم التحديث هنا) ==================================
+// ===== معالجة الرسائل والأوامر ==================================================
 // =================================================================================
 client.on('message_create', async msg => {
     // تجاهل الرسائل الصادرة من البوت نفسه أو الرسائل بدون محتوى
@@ -213,8 +214,9 @@ client.on('message_create', async msg => {
     }
 
     // --- معالجة اختيار المستخدم من القائمة ---
-    if (msg.type === 'list_response') {
-        const selectedId = msg.selectedRowId;
+    // تم تعديل هذا الجزء ليعمل مع الأزرار بدلاً من القوائم
+    if (msg.type === 'buttons_response') {
+        const selectedId = msg.selectedButtonId;
         let response = '';
         switch (selectedId) {
             case 'ai_creative_menu':
@@ -271,16 +273,15 @@ client.on('message_create', async msg => {
 
     switch (command) {
         case 'اوامر':
-            const sections = [{
-                title: 'قائمة الأوامر',
-                rows: [
-                    { title: '🤖 ذكاء اصطناعي وإبداع', description: 'تلخيص روابط، إنشاء صور وميمز، والمزيد', id: 'ai_creative_menu' },
-                    { title: '🎮 ألعاب وتفاعل اجتماعي', description: 'نظام النقاط، صور GIF، ألغاز، وألعاب', id: 'games_social_menu' },
-                    { title: '🛠️ خدمات وأدوات شخصية', description: 'ضبط تذكيرات، معرفة الطقس، والتاريخ', id: 'tools_services_menu' }
-                ]
-            }];
-            const list = new List('مرحباً بك في قائمة أوامر *كيدي* التفاعلية.', 'عرض الأوامر', sections, '🤖 كيدي بوت | اختر ما يناسبك');
-            return client.sendMessage(from, list);
+            // تم تحديث هذا الجزء بالكامل لاستخدام الأزرار
+            const buttonBody = 'مرحباً بك في قائمة أوامر *كيدي* التفاعلية. اختر فئة لعرض أوامرها:';
+            const buttons = [
+                { body: '🤖 ذكاء اصطناعي', id: 'ai_creative_menu' },
+                { body: '🎮 ألعاب وتفاعل', id: 'games_social_menu' },
+                { body: '🛠️ خدمات وأدوات', id: 'tools_services_menu' }
+            ];
+            const buttonMessage = new Buttons(buttonBody, buttons, '🤖 كيدي بوت', 'اختر ما يناسبك');
+            return client.sendMessage(from, buttonMessage);
 
         case 'ذكاء':
             if (!args) return msg.reply('يرجى كتابة سؤال بعد كلمة *ذكاء*.');

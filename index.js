@@ -12,7 +12,7 @@ const Jimp = require('jimp');
 // =================================================================================
 // ===== إعدادات ومفاتيح API (كل المفاتيح مكتملة الآن) ===========================
 // =================================================================================
-cconst OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const IMGBB_KEY = process.env.IMGBB_KEY;
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY;

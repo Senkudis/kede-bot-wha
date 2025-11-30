@@ -45,11 +45,16 @@ app.listen(port, () => {
 // ------------------------------------------------------------------
 // ... (باقي الكود فوق زي ما هو)
 
+// ... (الكود الفوق زي ما هو)
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash", // رجعناه فلاش لأن المكتبة الجديدة حتعرفه
+    // غيرنا الاسم لـ "gemini-1.5-flash-latest" وده الاسم الرسمي المحدث
+    model: "gemini-1.5-flash-latest", 
     systemInstruction: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي."
 });
+
+// ... (الكود التحت زي ما هو)
 
 // ... (باقي الكود تحت زي ما هو)
 function fileToGenerativePart(base64Data, mimeType) {

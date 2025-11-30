@@ -43,12 +43,15 @@ app.listen(port, () => {
 // ------------------------------------------------------------------
 // 2. إعداد الذكاء الاصطناعي (Gemini)
 // ------------------------------------------------------------------
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "ضع_مفتاحك_هنا_للتجربة_المحلية");
+// ... (باقي الكود فوق زي ما هو)
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-pro", // غيرنا الاسم هنا
+    model: "gemini-1.5-flash", // رجعناه فلاش لأن المكتبة الجديدة حتعرفه
     systemInstruction: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي."
 });
 
+// ... (باقي الكود تحت زي ما هو)
 function fileToGenerativePart(base64Data, mimeType) {
     return { inlineData: { data: base64Data, mimeType } };
 }

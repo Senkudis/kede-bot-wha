@@ -1,34 +1,41 @@
-FROM node:18
+FROM node:18-bullseye-slim
 
-# تثبيت المكتبات الناقصة لتشغيل Puppeteer/Chromium
+# 1. تثبيت أساسيات النظام ومتطلبات Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libx11-xcb1 \
-    libdrm2 \
-    libgbm1 \
+    ca-certificates \
+    procps \
+    libxss1 \
     libasound2 \
-    libgobject-2.0-0 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libgbm1 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
     fonts-liberation \
     libappindicator3-1 \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# تثبيت Google Chrome
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-linux-keyring.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && apt-get install -y google-chrome-stable
-
-# إنشاء مجلد العمل
+# 2. إعداد المسار
 WORKDIR /app
 
-# نسخ الملفات
+# 3. نسخ التبعيات والتثبيت
 COPY package*.json ./
 RUN npm install
+
+# 4. نسخ باقي الكود
 COPY . .
 
-# تشغيل البوت
-CMD ["npm", "start"]
+# 5. فتح البورت (ضروري لـ Koyeb)
+ENV PORT=8000
+EXPOSE 8000
+
+# 6. التشغيل
+CMD ["node", "index.js"]

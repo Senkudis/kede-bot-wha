@@ -1,44 +1,84 @@
-// index.js
-require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const { handleQRCode } = require('./handlers/qrHandler'); // سننشئه لاحقًا
-const { handleReady, handleDisconnect } = require('./handlers/clientHandlers'); // سننشئه لاحقًا
-const messageHandler = require('./handlers/messageHandler');
+const qrcode = require('qrcode');
+const express = require('express');
+const app = express();
 
-console.log('🚀 [Kede-Bot] Starting up...');
+// --- إعدادات السيرفر وصفحة الويب ---
+const port = process.env.PORT || 8000;
+let qrCodeImage = "<h1>جاري تشغيل البوت... يرجى الانتظار دقيقة</h1>";
 
-// تهيئة عميل الواتساب
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+app.get('/', (req, res) => {
+    res.send(`
+        <html>
+            <head>
+                <title>Kede Bot QR</title>
+                <meta http-equiv="refresh" content="5"> <style>
+                    body { font-family: sans-serif; text-align: center; padding-top: 50px; background-color: #f0f2f5; }
+                    .container { background: white; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    h2 { color: #333; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>اربط كيدي الآن 🤖</h2>
+                    <div>${qrCodeImage}</div>
+                    <p>امسح الكود بواسطة واتساب في هاتفك</p>
+                    <small>يتم تحديث الصفحة تلقائياً</small>
+                </div>
+            </body>
+        </html>
+    `);
 });
 
-// ربط الأحداث بالمعالجات الخاصة بها
-client.on('qr', handleQRCode);
-client.on('ready', handleReady);
-client.on('disconnected', handleDisconnect);
+app.listen(port, () => {
+    console.log(`🌍 Server running on port ${port}`);
+});
 
-// أهم جزء: ربط حدث الرسائل بالمعالج الرئيسي
-// نمرر 'client' كمعامل ليستطيع المعالج استخدامه
-client.on('message_create', (msg) => messageHandler(client, msg));
+// --- استدعاء المعالجات الخارجية ---
+// تأكد من وجود مجلد handlers والملفات بداخله
+const { handleReady, handleDisconnect } = require('./handlers/clientHandlers');
+const messageHandler = require('./handlers/messageHandler');
 
-// معالجة أحداث الانضمام للمجموعة (يمكن وضعها في ملف خاص لاحقًا)
-client.on('group_join', async (notification) => {
-    try {
-        const chat = await notification.getChat();
-        const contact = await client.getContactById(notification.id.participant);
-        await chat.sendMessage(`🎉 أهلاً وسهلاً بالمبدع/ة @${contact.number} في مجموعة *${chat.name}*! نتمنى لك وقتاً ممتعاً.\n\nاكتب "اوامر" لعرض قائمة الخدمات.`, { mentions: [contact] });
-    } catch (error) {
-        console.error("❌ Error in group_join handler:", error);
+console.log('🚀 [Kede-Bot] Initializing...');
+
+// --- إعداد عميل الواتساب (Puppeteer) ---
+const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', 
+            '--disable-gpu'
+        ]
     }
 });
 
-// بدء تشغيل البوت
-client.initialize();
-
-// حفظ البيانات عند الإغلاق
-process.on('SIGINT', () => {
-    console.log('💾 [Kede-Bot] Saving data before shutdown...');
-    // لا نحتاج لحفظ البيانات هنا لأن كل أمر يحفظ بياناته بنفسه
-    process.exit();
+// 1. معالجة الباركود (تحويله لصورة وعرضه في الموقع)
+client.on('qr', (qr) => {
+    console.log('⚡ QR Code received (Available on Web)');
+    qrcode.toDataURL(qr, (err, url) => {
+        if (!err) {
+            qrCodeImage = `<img src="${url}" width="300" height="300">`;
+        } else {
+            console.error('Error generating QR image', err);
+        }
+    });
 });
+
+// 2. ربط باقي الأحداث
+client.on('ready', () => {
+    handleReady();
+    qrCodeImage = "<h1>✅ تم الاتصال بنجاح! كيدي جاهز.</h1>";
+});
+
+client.on('disconnected', handleDisconnect);
+
+client.on('message_create', (msg) => messageHandler(client, msg));
+
+client.initialize();

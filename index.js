@@ -5,7 +5,7 @@ const qrcode = require('qrcode');
 const express = require('express');
 const app = express();
 
-// --- 1. إعداد السيرفر ---
+// --- 1. WEB SERVER ---
 const port = process.env.PORT || 8000;
 let qrCodeImage = "<h1>⏳ جاري تجهيز كيدي...</h1>";
 let isClientReady = false;
@@ -35,18 +35,28 @@ app.get('/', (req, res) => {
 });
 app.listen(port, () => console.log(`Server running on port ${port}`));
 
-// --- 2. إعداد Groq AI ---
+
+// --- 2. GROQ AI ---
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-// --- 3. تشغيل الواتساب ---
+
+// --- 3. WHATSAPP CLIENT ---
 console.log('🚀 Starting WhatsApp...');
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--single-process', '--disable-gpu']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--single-process',
+            '--disable-gpu'
+        ]
     }
 });
 
@@ -64,101 +74,129 @@ client.on('ready', () => {
 });
 
 client.on('disconnected', () => {
-    console.log('❌ Disconnected');
+    console.log('❌ Disconnected — إعادة تشغيل...');
     isClientReady = false;
-    client.initialize();
+    client.destroy();
+    setTimeout(() => client.initialize(), 2000);
 });
 
-// --- 4. معالجة الرسائل ---
-// 🔥🔥🔥 هنا التصحيح: ضفنا كلمة async 🔥🔥🔥
-client.on('message_create', async (msg) => {
-    if (msg.fromMe) return;
+
+// --- 4. MESSAGE HANDLER ---
+client.on('message', async (msg) => {
 
     const body = msg.body.trim();
     const lowerBody = body.toLowerCase();
     const chat = await msg.getChat();
 
-    // --- القائمة (الأوامر) ---
-    if (lowerBody === 'اوامر' || lowerBody === 'أوامر' || lowerBody === 'help') {
+    // --- أوامر البوت ---
+    if (['اوامر', 'أوامر', 'help', 'menu'].includes(lowerBody)) {
         const menu = `🤖 *مرحباً بك في كيدي بوت!* 🚀
-        
-📸 *تحليل الصور وحل المعادلات:*
-ارسل صورة واكتب تحتها "كيدي" أو "اشرح".
 
-🔤 *الترجمة:*
-اكتب: *ترجم [النص]*
+📸 *تحليل الصور وحل المسائل:*
+ارسل صورة وقل "كيدي".
 
 🎨 *صناعة الملصقات:*
-ارسل صورة واكتب معاها: *ملصق*
+ارسل صورة واكتب: *ملصق*
+
+🔤 *الترجمة:*
+اكتب: *ترجم + النص*
 
 💬 *الذكاء الاصطناعي:*
-اكتب: *كيدي [سؤالك]*`;
+اكتب: *كيدي + سؤالك*`;
         
         await msg.reply(menu);
         return;
     }
 
-    // --- صانع الاستيكرات ---
-    if (msg.hasMedia && (lowerBody === 'ملصق' || lowerBody === 'sticker' || lowerBody === 'ستيكر')) {
+
+    // --- صانع الملصقات ---
+    if (msg.hasMedia && ['ملصق', 'sticker', 'ستيكر'].includes(lowerBody)) {
+
         try {
-            // 👇 هنا كان الخطأ، والآن تصلح بوجود async فوق
             const media = await msg.downloadMedia();
-            await client.sendMessage(msg.from, media, { sendMediaAsSticker: true, stickerName: "Kede Bot", stickerAuthor: "Groq AI" });
-        } catch (e) { msg.reply("❌ فشل عمل الملصق."); }
+            await client.sendMessage(msg.from, media, {
+                sendMediaAsSticker: true,
+                stickerName: "Kede Bot",
+                stickerAuthor: "Groq AI"
+            });
+        } catch (err) {
+            console.log("Sticker Error:", err);
+            await msg.reply("❌ فشل صنع الملصق.");
+        }
+
         return;
     }
 
-    // --- الذكاء الاصطناعي (Groq) ---
-    const isTrigger = lowerBody.startsWith('كيدي') || lowerBody.startsWith('ترجم') || lowerBody.startsWith('ذكاء');
-    const isImage = msg.hasMedia && msg.type === 'image';
-    const isDirect = !msg.from.endsWith('@g.us');
 
-    if (isTrigger || (isImage && isDirect) || (isImage && lowerBody.includes('كيدي'))) {
-        await chat.sendStateTyping();
+    // --- الذكاء الاصطناعي + الصور ---
+    const isTriggerText =
+        lowerBody.startsWith("كيدي") ||
+        lowerBody.startsWith("ذكاء") ||
+        lowerBody.startsWith("ترجم");
 
-        try {
-            let messages = [];
-            let userContent = [];
-            let prompt = body;
+    const isImage = msg.hasMedia && msg.type === "image";
 
-            if (lowerBody.startsWith('كيدي')) prompt = body.replace(/^كيدي\s*/i, '');
-            if (lowerBody.startsWith('ذكاء')) prompt = body.replace(/^ذكاء\s*/i, '');
-            if (lowerBody.startsWith('ترجم')) prompt = `Translate to Arabic/English: "${body.replace(/^ترجم\s*/i, '')}"`;
-            
-            if (!prompt && isImage) prompt = "اشرح لي الصورة دي بالتفصيل.";
+    // لو صورة بدون كلام → تجاهل
+    if (!isTriggerText && isImage === false) return;
 
-            userContent.push({ type: "text", text: prompt });
+    await chat.sendStateTyping();
 
-            let selectedModel = "llama-3.3-70b-versatile"; 
-            
-            if (isImage) {
-                const media = await msg.downloadMedia();
-                const imageUrl = `data:${media.mimetype};base64,${media.data}`;
-                
-                userContent.push({
-                    type: "image_url",
-                    image_url: { url: imageUrl }
-                });
-                
-                selectedModel = "llama-3.2-11b-vision-preview"; 
-            }
 
-            messages.push({ role: "user", content: userContent });
+    try {
+        let prompt = body;
+        let messages = [];
+        let content = [];
 
-            const completion = await groq.chat.completions.create({
-                messages: messages,
-                model: selectedModel,
-                temperature: 0.6,
-                max_tokens: 1024,
+        // معالجة أوامر النصوص
+        if (lowerBody.startsWith('كيدي')) {
+            prompt = body.replace(/^كيدي\s*/i, '');
+        }
+
+        if (lowerBody.startsWith('ذكاء')) {
+            prompt = body.replace(/^ذكاء\s*/i, '');
+        }
+
+        if (lowerBody.startsWith('ترجم')) {
+            prompt = `Translate to Arabic/English: "${body.replace(/^ترجم\s*/i, '')}"`;
+        }
+
+        // لو صورة
+        let model = "llama-3.3-70b-versatile";
+
+        content.push({ type: "text", text: prompt || "اشرح الصورة دي." });
+
+        if (isImage) {
+            const media = await msg.downloadMedia();
+            const imageUrl = `data:${media.mimetype};base64,${media.data}`;
+
+            content.push({
+                type: "image_url",
+                image_url: imageUrl
             });
 
-            const replyText = completion.choices[0]?.message?.content || "عذراً، لم أفهم.";
-            await msg.reply(replyText);
-
-        } catch (error) {
-            console.error("Groq Error:", error);
+            model = "llama-3.2-11b-vision-preview";
         }
+
+        messages.push({ role: "user", content });
+
+        // إرسال الطلب لـ Groq
+        const completion = await groq.chat.completions.create({
+            messages,
+            model,
+            max_tokens: 1200,
+            temperature: 0.6
+        });
+
+        const reply = completion.choices[0]?.message?.content || "❌ ما قدرت أفهم الكلام.";
+
+        await msg.reply(reply);
+
+    } catch (err) {
+        console.log("Groq Error:", err);
+        await msg.reply("❌ حصل خطأ أثناء المعالجة.");
     }
+
 });
+
 
 client.initialize();

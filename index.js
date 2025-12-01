@@ -1,99 +1,181 @@
 require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const fs = require('fs');
-const path = require('path');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const qrcode = require('qrcode');
-const axios = require('axios');
-const FormData = require('form-data');
 const express = require('express');
-
-// استدعاء ملف الأوامر الخارجي
-const commands = require('./commands'); 
-
-// --- إعدادات السيرفر ---
+const axios = require('axios');
 const app = express();
-const port = process.env.PORT || 8000;
-let qrImageUrl = "";
 
-app.get('/', (req, res) => res.send(`<h1>Kede Bot Active</h1><br><img src="${qrImageUrl}" width="300"/>`));
+// --- 1. إعداد السيرفر (Koyeb) ---
+const port = process.env.PORT || 8000;
+let qrCodeImage = "<h1>⏳ جاري تحميل كيدي...</h1>";
+let isClientReady = false;
+
+app.get('/', (req, res) => {
+    res.send(`
+        <html>
+            <head>
+                <title>Kede Edu Bot</title>
+                <meta http-equiv="refresh" content="5">
+                <style>
+                    body { font-family: sans-serif; text-align: center; padding-top: 50px; background: #e0f7fa; }
+                    .box { background: white; padding: 20px; border-radius: 15px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                    h2 { color: #006064; }
+                </style>
+            </head>
+            <body>
+                <div class="box">
+                    <h2>📚 كيدي البوت التعليمي</h2>
+                    <p>الحالة: <b>${isClientReady ? '✅ متصل' : '🔴 غير متصل'}</b></p>
+                    <div>${qrCodeImage}</div>
+                    <p>يتم التحديث كل 5 ثواني</p>
+                </div>
+            </body>
+        </html>
+    `);
+});
 app.listen(port, () => console.log(`Server running on port ${port}`));
 
-// --- المتغيرات البيئية ---
-const ENV_KEYS = {
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'sk-proj-...', // ضع مفاتيحك هنا أو في .env
-    IMGBB_KEY: process.env.IMGBB_KEY || '8df2f63e10f44cf4f6f7d99382861e76',
-    WEATHER_API_KEY: process.env.WEATHER_API_KEY || '316d0c91eed64b65a15211006251008'
-};
+// --- 2. إعداد Gemini (المخ) ---
+// تأكد من إضافة GEMINI_API_KEY في إعدادات Koyeb
+const genAI = new GoogleGenerativeAI("AIzaSyDKOCf8PsMnZUBWlbRv7Dg847g3SrjVYdM");
+const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash", // الموديل السريع اللي بيدعم الصور والصوت
+    systemInstruction: `أنت 'كيدي'، مساعد شخصي ومعلم خصوصي ذكي باللهجة السودانية.
+    - دورك: شرح الدروس، حل المعادلات من الصور، والترجمة.
+    - أسلوبك: واضح، مختصر، ومرح. استخدم الإيموجي المناسب.
+    - لو أتاك سؤال عن الطقس أو الترجمة جاوب بدقة.`
+});
 
-// --- إدارة البيانات (Data Store) ---
-const DATA_FILE = path.join(__dirname, 'data.json');
-let data = { subscribers: [], pendingQuiz: {}, pendingGames: {}, groupStats: {}, welcomedChats: [] };
-
-if (fs.existsSync(DATA_FILE)) {
-    try { data = JSON.parse(fs.readFileSync(DATA_FILE)); } catch (e) {}
+function fileToGenerativePart(base64Data, mimeType) {
+    return { inlineData: { data: base64Data, mimeType } };
 }
 
-function saveData() { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
-
-// --- إعداد العميل ---
+// --- 3. تشغيل الواتساب ---
+console.log('🚀 Starting WhatsApp...');
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--single-process', '--disable-gpu']
+        args: [
+            '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote',
+            '--single-process', '--disable-gpu'
+        ]
     }
 });
 
-client.on('qr', async qr => {
-    console.log('📌 QR Generated');
+client.on('qr', (qr) => {
+    console.log('⚡ QR Code Received');
+    qrcode.toDataURL(qr, (err, url) => {
+        if (!err) qrCodeImage = `<img src="${url}" width="300">`;
+    });
+});
+
+client.on('ready', () => {
+    console.log('✅ Bot is Ready!');
+    isClientReady = true;
+    qrCodeImage = "<h1>✅ تم الربط بنجاح!</h1>";
+});
+
+client.on('disconnected', () => {
+    console.log('❌ Disconnected');
+    isClientReady = false;
+    client.initialize();
+});
+
+// --- 4. معالجة الرسائل (الأوامر والذكاء) ---
+client.on('message_create', async (msg) => {
+    if (msg.fromMe) return;
+
+    const body = msg.body.trim(); // النص الأصلي (للحفاظ على حالة الأحرف في الإنجليزي)
+    const lowerBody = body.toLowerCase();
+    const chat = await msg.getChat();
+
+    console.log(`📩 رسالة: ${body}`);
+
     try {
-        const qrPath = path.join(__dirname, 'qr.png');
-        await qrcode.toFile(qrPath, qr);
-        const form = new FormData();
-        form.append('image', fs.createReadStream(qrPath));
-        const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${ENV_KEYS.IMGBB_KEY}`, form, { headers: form.getHeaders() });
-        if (resp.data?.data?.url) qrImageUrl = resp.data.data.url;
-    } catch (err) { console.error('QR Upload Error'); }
-});
-
-client.on('ready', () => console.log('✅ Bot Ready'));
-
-client.on('message', async msg => {
-    const from = msg.from;
-    const body = msg.body.trim();
-    
-    // تقسيم الرسالة لأمر ونص (مثال: "طقس الخرطوم" -> الأمر: طقس، النص: الخرطوم)
-    const splitIndex = body.indexOf(' ');
-    const cmd = splitIndex === -1 ? body : body.substring(0, splitIndex);
-    const args = splitIndex === -1 ? '' : body.substring(splitIndex + 1);
-
-    // 1. معالجة الإجابات على الألغاز (خاصة)
-    if (data.pendingQuiz[from] && ['أ', 'ب'].includes(body)) {
-        const isCorrect = body === data.pendingQuiz[from].answer;
-        delete data.pendingQuiz[from]; saveData();
-        return msg.reply(isCorrect ? '✅ صح!' : '❌ غلط!');
-    }
-
-    // 2. البحث عن الأمر في ملف commands.js وتنفيذه
-    if (commands[cmd]) {
-        try {
-            // نمرر للملف الخارجي كل الأدوات اللي ممكن يحتاجها
-            await commands[cmd](msg, args, ENV_KEYS, data, saveData);
-        } catch (error) {
-            console.error(error);
-            msg.reply('❌ حصل خطأ أثناء تنفيذ الأمر.');
+        // --- أ: الاستيكرات ---
+        if (msg.hasMedia && (lowerBody === 'ملصق' || lowerBody === 'sticker' || lowerBody === 'ستيكر')) {
+            const media = await msg.downloadMedia();
+            await client.sendMessage(msg.from, media, { sendMediaAsSticker: true, stickerName: "Kede", stickerAuthor: "Bot" });
+            return;
         }
-    } 
-    
-    // 3. أوامر الاشتراك (ممكن تخليها هنا أو تنقلها للملف الخارجي)
-    else if (cmd === 'اشترك') {
-        if (!data.subscribers.includes(from)) {
-            data.subscribers.push(from); saveData(); msg.reply('✅ تم الاشتراك');
-        } else msg.reply('مشترك مسبقاً');
-    }
-    else if (cmd === 'الغاء') {
-        const idx = data.subscribers.indexOf(from);
-        if (idx > -1) { data.subscribers.splice(idx, 1); saveData(); msg.reply('✅ تم الإلغاء'); }
+
+        // --- ب: الطقس (باستخدام نظام ذكي) ---
+        if (lowerBody.startsWith('طقس ')) {
+            const city = body.substring(4).trim();
+            try {
+                // 1. نجيب الإحداثيات
+                const geo = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=ar&format=json`);
+                if (!geo.data.results) return msg.reply(`🧐 ما عرفت المدينة دي "${city}". جرب اكتب الاسم بالإنجليزي أو مدينة مشهورة.`);
+                
+                const { latitude, longitude, name, country } = geo.data.results[0];
+                
+                // 2. نجيب الطقس
+                const weather = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,is_day&timezone=auto`);
+                const curr = weather.data.current;
+                
+                msg.reply(`🌤 *الطقس في ${name}, ${country}*:
+🌡 الحرارة: ${curr.temperature_2m}°C
+💧 الرطوبة: ${curr.relative_humidity_2m}%
+💨 الرياح: ${curr.wind_speed_10m} كم/س
+${curr.is_day ? '☀️ نهار' : '🌑 ليل'}`);
+            } catch (e) { msg.reply("❌ حصل خطأ في جلب الطقس."); }
+            return;
+        }
+
+        // --- ج: الذكاء الاصطناعي (تعليم - ترجمة - صور - صوت) ---
+        // الشروط: يبدأ بـ "كيدي" أو "ترجم" أو "ذكاء" ... أو لو في صورة/صوت (بدون شروط)
+        const isTriggerWord = lowerBody.startsWith('كيدي') || lowerBody.startsWith('ترجم') || lowerBody.startsWith('ذكاء');
+        const isMedia = msg.hasMedia && (msg.type === 'image' || msg.type === 'audio' || msg.type === 'ptt');
+        
+        // لو المستخدم راسل للبوت مباشرة (في الخاص) ما بنحتاج كلمة "كيدي"
+        const isDirectChat = !msg.from.endsWith('@g.us'); 
+
+        if (isTriggerWord || (isMedia && isDirectChat) || (isMedia && lowerBody.includes('كيدي'))) {
+            await chat.sendStateTyping();
+
+            let prompt = body;
+            
+            // تنظيف الأمر عشان Gemini يفهم
+            if (lowerBody.startsWith('كيدي')) prompt = body.replace(/^كيدي\s*/i, '');
+            if (lowerBody.startsWith('ذكاء')) prompt = body.replace(/^ذكاء\s*/i, '');
+            if (lowerBody.startsWith('ترجم')) prompt = `Translate this text to Arabic if it is English, and to English if it is Arabic: "${body.replace(/^ترجم\s*/i, '')}"`;
+
+            // لو ماف نص، ورسل صورة بس
+            if (!prompt && isMedia) prompt = "اشرح لي الصورة دي أو حل المعادلة الموجودة فيها بالتفصيل";
+
+            let parts = [prompt];
+
+            if (msg.hasMedia) {
+                const media = await msg.downloadMedia();
+                // دعم الصور والصوت
+                if (media.mimetype.startsWith('image/') || media.mimetype.startsWith('audio/')) {
+                    parts.push(fileToGenerativePart(media.data, media.mimetype));
+                }
+            }
+
+            const result = await model.generateContent(parts);
+            const response = await result.response;
+            await msg.reply(response.text());
+        }
+
+        // --- د: أوامر بسيطة ---
+        if (lowerBody === 'اوامر') {
+            msg.reply(`🤖 *أوامر كيدي التعليمي:*
+            
+📸 *حل المعادلات:* ارسل صورة المسألة (في الخاص) وحلها ليك.
+🎤 *شرح صوتي:* ارسل ريكورد بسؤالك.
+🔤 *ترجم [النص]:* للترجمة الفورية.
+🌤 *طقس [المدينة]:* لمعرفة الجو.
+🎨 *ملصق:* (مع صورة) لعمل ستيكر.
+🗣 *كيدي [سؤالك]:* للمونسة والمعلومات.`);
+        }
+
+    } catch (e) {
+        console.error('Error:', e);
+        // msg.reply("معليش، حصلت مشكلة بسيطة 🤕");
     }
 });
 

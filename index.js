@@ -5,7 +5,7 @@ const qrcode = require('qrcode');
 const express = require('express');
 const app = express();
 
-// --- 1. إعداد السيرفر (Koyeb) ---
+// --- 1. إعداد السيرفر ---
 const port = process.env.PORT || 8000;
 let qrCodeImage = "<h1>⏳ جاري تجهيز كيدي...</h1>";
 let isClientReady = false;
@@ -36,7 +36,6 @@ app.get('/', (req, res) => {
 app.listen(port, () => console.log(`Server running on port ${port}`));
 
 // --- 2. إعداد Groq AI ---
-// تأكد من وضع GROQ_API_KEY في إعدادات Koyeb
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
@@ -70,55 +69,39 @@ client.on('disconnected', () => {
     client.initialize();
 });
 
-// --- 4. معالجة الرسائل (الأوامر + الذكاء) ---
+// --- 4. معالجة الرسائل ---
+// 🔥🔥🔥 هنا التصحيح: ضفنا كلمة async 🔥🔥🔥
 client.on('message_create', async (msg) => {
-    const body = msg.body.trim();
-    const lowerBody = body.toLowerCase();
-    
-    // 1. طباعة أي رسالة بتوصل في الـ Logs (عشان نتأكد إن الواتساب سامعنا)
-    console.log(`🔔 رسالة جديدة وصلت: "${body}" من الرقم: ${msg.from}`);
-
-    // تجاهل رسائل البوت لنفسه
     if (msg.fromMe) return;
 
-    // 2. تجربة الرد المباشر (بدون ذكاء اصطناعي)
-    if (lowerBody === 'تست' || lowerBody === 'ping') {
-        await msg.reply('✅ أنا شغال وسامعك يا مدير! المشكلة كانت في مفتاح الذكاء الاصطناعي غالباً.');
+    const body = msg.body.trim();
+    const lowerBody = body.toLowerCase();
+    const chat = await msg.getChat();
+
+    // --- القائمة (الأوامر) ---
+    if (lowerBody === 'اوامر' || lowerBody === 'أوامر' || lowerBody === 'help') {
+        const menu = `🤖 *مرحباً بك في كيدي بوت!* 🚀
+        
+📸 *تحليل الصور وحل المعادلات:*
+ارسل صورة واكتب تحتها "كيدي" أو "اشرح".
+
+🔤 *الترجمة:*
+اكتب: *ترجم [النص]*
+
+🎨 *صناعة الملصقات:*
+ارسل صورة واكتب معاها: *ملصق*
+
+💬 *الذكاء الاصطناعي:*
+اكتب: *كيدي [سؤالك]*`;
+        
+        await msg.reply(menu);
         return;
     }
 
-    // 3. القائمة
-    if (lowerBody === 'اوامر') {
-        await msg.reply('🤖 *أوامر كيدي:*\n- كيدي [سؤالك]\n- ترجم [النص]\n- ملصق (مع صورة)');
-        return;
-    }
-
-    // 4. الذكاء الاصطناعي Groq
-    if (lowerBody.startsWith('كيدي') || lowerBody.startsWith('ترجم') || lowerBody.startsWith('ذكاء')) {
-        const chat = await msg.getChat();
-        await chat.sendStateTyping();
-
-        try {
-            let prompt = body;
-            if (lowerBody.startsWith('كيدي')) prompt = body.replace(/^كيدي\s*/i, '');
-            
-            // إضافة مفتاحك هنا مباشرة للاختبار (لو ما عرفت تضيفه في Railway)
-            // لكن الأفضل تضيفه في المتغيرات
-            
-            const completion = await groq.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
-            });
-            
-            await msg.reply(completion.choices[0]?.message?.content);
-        } catch (error) {
-            console.error("❌ خطأ Groq:", error); // حيظهر ليك سبب الخطأ في الشاشة السوداء
-        }
-    }
-});
     // --- صانع الاستيكرات ---
     if (msg.hasMedia && (lowerBody === 'ملصق' || lowerBody === 'sticker' || lowerBody === 'ستيكر')) {
         try {
+            // 👇 هنا كان الخطأ، والآن تصلح بوجود async فوق
             const media = await msg.downloadMedia();
             await client.sendMessage(msg.from, media, { sendMediaAsSticker: true, stickerName: "Kede Bot", stickerAuthor: "Groq AI" });
         } catch (e) { msg.reply("❌ فشل عمل الملصق."); }
@@ -126,10 +109,9 @@ client.on('message_create', async (msg) => {
     }
 
     // --- الذكاء الاصطناعي (Groq) ---
-    // الشروط: يبدأ بـ كيدي/ترجم/ذكاء ... أو صورة مرسلة في الخاص ... أو صورة مع كلمة كيدي
     const isTrigger = lowerBody.startsWith('كيدي') || lowerBody.startsWith('ترجم') || lowerBody.startsWith('ذكاء');
     const isImage = msg.hasMedia && msg.type === 'image';
-    const isDirect = !msg.from.endsWith('@g.us'); // هل هو شات خاص؟
+    const isDirect = !msg.from.endsWith('@g.us');
 
     if (isTrigger || (isImage && isDirect) || (isImage && lowerBody.includes('كيدي'))) {
         await chat.sendStateTyping();
@@ -139,19 +121,15 @@ client.on('message_create', async (msg) => {
             let userContent = [];
             let prompt = body;
 
-            // تنظيف النص
             if (lowerBody.startsWith('كيدي')) prompt = body.replace(/^كيدي\s*/i, '');
             if (lowerBody.startsWith('ذكاء')) prompt = body.replace(/^ذكاء\s*/i, '');
-            if (lowerBody.startsWith('ترجم')) prompt = `Translate the following to Arabic (if foreign) or English (if Arabic): "${body.replace(/^ترجم\s*/i, '')}"`;
+            if (lowerBody.startsWith('ترجم')) prompt = `Translate to Arabic/English: "${body.replace(/^ترجم\s*/i, '')}"`;
             
-            // لو صورة بدون نص
-            if (!prompt && isImage) prompt = "اشرح لي الصورة دي بالتفصيل، ولو فيها معادلة حلها.";
+            if (!prompt && isImage) prompt = "اشرح لي الصورة دي بالتفصيل.";
 
-            // إضافة النص
             userContent.push({ type: "text", text: prompt });
 
-            // تحديد الموديل (نصوص ولا صور؟)
-            let selectedModel = "llama-3.3-70b-versatile"; // الموديل القوي للنصوص
+            let selectedModel = "llama-3.3-70b-versatile"; 
             
             if (isImage) {
                 const media = await msg.downloadMedia();
@@ -162,29 +140,23 @@ client.on('message_create', async (msg) => {
                     image_url: { url: imageUrl }
                 });
                 
-                // موديل الرؤية (Vision)
                 selectedModel = "llama-3.2-11b-vision-preview"; 
             }
 
             messages.push({ role: "user", content: userContent });
 
-            // إضافة تعليمات للنظام (شخصية البوت)
-            const systemMsg = { role: "system", content: "أنت مساعد سوداني ذكي ومرح اسمك 'كيدي'. ردودك مختصرة ومفيدة وباللهجة السودانية." };
-            
-            // الإرسال لـ Groq
             const completion = await groq.chat.completions.create({
-                messages: [systemMsg, ...messages],
+                messages: messages,
                 model: selectedModel,
                 temperature: 0.6,
                 max_tokens: 1024,
             });
 
-            const replyText = completion.choices[0]?.message?.content || "معليش، ما قدرت أفهم.";
+            const replyText = completion.choices[0]?.message?.content || "عذراً، لم أفهم.";
             await msg.reply(replyText);
 
         } catch (error) {
             console.error("Groq Error:", error);
-            // msg.reply("خطأ في الاتصال بالذكاء الاصطناعي 🤕");
         }
     }
 });

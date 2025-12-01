@@ -1,8 +1,11 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require('axios'); // المكتبة الجديدة للاتصال
 const qrcode = require('qrcode');
 const express = require('express');
 const app = express();
+
+// مفتاحك الخاص (مدمج)
+const API_KEY = "AIzaSyA7yAQNsB3FsBJxaL86pUFErcJmcFFsbBk";
 
 // ------------------------------------------------------------------
 // 1. إعداد سيرفر الويب
@@ -41,23 +44,44 @@ app.listen(port, () => {
 });
 
 // ------------------------------------------------------------------
-// 2. إعداد الذكاء الاصطناعي (المفتاح داخل الكود)
+// 2. دالة الاتصال المباشر بـ Gemini (بدون مكتبة)
 // ------------------------------------------------------------------
-// 🔥 تم وضع المفتاح مباشرة هنا
-// ... (الكود الفوق زي ما هو)
+async function askGemini(prompt, imageBase64 = null, mimeType = null) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    
+    let contentsPart = { text: prompt };
+    
+    // لو في صورة، نضيفها للطلب
+    if (imageBase64) {
+        contentsPart = [
+            { text: prompt || "صف هذه الصورة" },
+            {
+                inline_data: {
+                    mime_type: mimeType,
+                    data: imageBase64
+                }
+            }
+        ];
+    } else {
+        contentsPart = [{ text: prompt }];
+    }
 
-// استخدمنا المفتاح اللي انت اديتني ليهو (Hardcoded) عشان نقطع الشك باليقين
-const genAI = new GoogleGenerativeAI("AIzaSyA7yAQNsB3FsBJxaL86pUFErcJmcFFsbBk");
+    const payload = {
+        contents: [{ parts: contentsPart }],
+        // تعليمات النظام (الشخصية)
+        system_instruction: {
+            parts: [{ text: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي." }]
+        }
+    };
 
-const model = genAI.getGenerativeModel({ 
-    model: "gemini-pro", // ده الموديل الجوكر (شغال 100%)
-    systemInstruction: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي."
-});
-
-// ... (باقي الكود تحت زي ما هو)
-
-function fileToGenerativePart(base64Data, mimeType) {
-    return { inlineData: { data: base64Data, mimeType } };
+    try {
+        const response = await axios.post(url, payload);
+        // استخراج النص من رد قوقل
+        return response.data.candidates[0].content.parts[0].text;
+    } catch (error) {
+        console.error("Gemini API Error:", error.response ? error.response.data : error.message);
+        return "معليش يا مدير، الشبكة طشّت شوية 😅";
+    }
 }
 
 // ------------------------------------------------------------------
@@ -85,9 +109,7 @@ const client = new Client({
 client.on('qr', (qr) => {
     console.log('⚡ QR Code Received');
     qrcode.toDataURL(qr, (err, url) => {
-        if (!err) {
-            qrCodeImage = `<img src="${url}" width="300">`;
-        }
+        if (!err) qrCodeImage = `<img src="${url}" width="300">`;
     });
 });
 
@@ -108,7 +130,6 @@ client.on('disconnected', (reason) => {
 // 4. معالجة الرسائل
 // ------------------------------------------------------------------
 client.on('message_create', async (msg) => {
-    // 1. تجاهل رسائل البوت
     if (msg.fromMe) return;
 
     const body = msg.body.toLowerCase().trim();
@@ -129,31 +150,33 @@ client.on('message_create', async (msg) => {
             return;
         }
 
-        // --- ميزة الذكاء الاصطناعي ---
+        // --- ميزة الذكاء الاصطناعي (كيدي) ---
         if (body.startsWith('كيدي') || body.startsWith('.ai')) {
             await chat.sendStateTyping();
 
             let promptText = body.replace('كيدي', '').replace('.ai', '').trim();
-            if (!promptText && !msg.hasMedia) {
-                await msg.reply("حبابك يا مدير! دايرني في شنو؟ 🤖");
-                return;
-            }
-            if (!promptText) promptText = "اشرح لي الصورة دي";
+            
+            let imageBase64 = null;
+            let mimeType = null;
 
-            let parts = [promptText];
-
+            // لو في صورة
             if (msg.hasMedia) {
                 const media = await msg.downloadMedia();
                 if (media.mimetype.startsWith('image/')) {
-                    parts.push(fileToGenerativePart(media.data, media.mimetype));
+                    imageBase64 = media.data;
+                    mimeType = media.mimetype;
                 }
+            } else if (!promptText) {
+                // لو ماف نص وماف صورة
+                await msg.reply("حبابك يا مدير! دايرني في شنو؟ 🤖");
+                return;
             }
 
-            const result = await model.generateContent(parts);
-            const response = await result.response;
-            const text = response.text();
-
-            await msg.reply(text);
+            // الاتصال بـ Gemini
+            const responseText = await askGemini(promptText, imageBase64, mimeType);
+            
+            // الرد
+            await msg.reply(responseText);
             console.log('🤖 AI Replied');
         }
 

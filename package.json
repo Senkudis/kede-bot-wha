@@ -1,6 +1,7 @@
 {
   "name": "kede-edu-bot",
   "version": "2.0.0",
+  "description": "Smart Education Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -10,9 +11,8 @@
     "qrcode": "^1.5.3",
     "puppeteer": "^19.11.1",
     "express": "^4.18.2",
-    "@google/generative-ai": "^0.11.0",
-    "axios": "^1.6.0",
-    "fluent-ffmpeg": "^2.1.2" 
+    "@google/generative-ai": "latest",
+    "axios": "^1.6.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,10 +1,10 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const axios = require('axios'); // المكتبة الجديدة للاتصال
+const axios = require('axios'); // تأكد إنك ضفت axios في package.json
 const qrcode = require('qrcode');
 const express = require('express');
 const app = express();
 
-// مفتاحك الخاص (مدمج)
+// مفتاحك الخاص
 const API_KEY = "AIzaSyA7yAQNsB3FsBJxaL86pUFErcJmcFFsbBk";
 
 // ------------------------------------------------------------------
@@ -44,17 +44,27 @@ app.listen(port, () => {
 });
 
 // ------------------------------------------------------------------
-// 2. دالة الاتصال المباشر بـ Gemini (بدون مكتبة)
+// 2. دالة الاتصال المباشر بـ Gemini (المصححة)
 // ------------------------------------------------------------------
 async function askGemini(prompt, imageBase64 = null, mimeType = null) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    // نستخدم gemini-pro للنصوص، و gemini-1.5-flash للصور
+    let modelName = "gemini-pro";
     
-    let contentsPart = { text: prompt };
+    // لو في صورة، لازم نستخدم موديل رؤية
+    if (imageBase64) modelName = "gemini-1.5-flash"; 
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
     
-    // لو في صورة، نضيفها للطلب
+    // دمج شخصية كيدي مع الرسالة
+    const systemInstruction = "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي. ردك يجب أن يكون مفيداً ومختصراً.\n\nالسؤال: ";
+    const finalPrompt = systemInstruction + (prompt || "صف هذه الصورة");
+
+    let parts = [{ text: finalPrompt }];
+    
+    // إعداد الصورة لو وجدت
     if (imageBase64) {
-        contentsPart = [
-            { text: prompt || "صف هذه الصورة" },
+        parts = [
+            { text: finalPrompt },
             {
                 inline_data: {
                     mime_type: mimeType,
@@ -62,25 +72,23 @@ async function askGemini(prompt, imageBase64 = null, mimeType = null) {
                 }
             }
         ];
-    } else {
-        contentsPart = [{ text: prompt }];
     }
 
     const payload = {
-        contents: [{ parts: contentsPart }],
-        // تعليمات النظام (الشخصية)
-        system_instruction: {
-            parts: [{ text: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي." }]
-        }
+        contents: [{ parts: parts }]
     };
 
     try {
         const response = await axios.post(url, payload);
-        // استخراج النص من رد قوقل
-        return response.data.candidates[0].content.parts[0].text;
+        // استخراج النص
+        if (response.data && response.data.candidates && response.data.candidates.length > 0) {
+            return response.data.candidates[0].content.parts[0].text;
+        } else {
+            return "معليش، ما قدرت أفهم الرسالة دي 😅";
+        }
     } catch (error) {
-        console.error("Gemini API Error:", error.response ? error.response.data : error.message);
-        return "معليش يا مدير، الشبكة طشّت شوية 😅";
+        console.error("Gemini Error Details:", JSON.stringify(error.response?.data || error.message));
+        return "حصلت مشكلة في الاتصال بموديل الذكاء الاصطناعي (404) أو النت ضعيف.";
     }
 }
 
@@ -167,7 +175,6 @@ client.on('message_create', async (msg) => {
                     mimeType = media.mimetype;
                 }
             } else if (!promptText) {
-                // لو ماف نص وماف صورة
                 await msg.reply("حبابك يا مدير! دايرني في شنو؟ 🤖");
                 return;
             }

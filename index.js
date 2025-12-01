@@ -1,10 +1,9 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const axios = require('axios'); // تأكد إنك ضفت axios في package.json
+const axios = require('axios');
 const qrcode = require('qrcode');
 const express = require('express');
 const app = express();
 
-// مفتاحك الخاص
 const API_KEY = "AIzaSyA7yAQNsB3FsBJxaL86pUFErcJmcFFsbBk";
 
 // ------------------------------------------------------------------
@@ -44,56 +43,61 @@ app.listen(port, () => {
 });
 
 // ------------------------------------------------------------------
-// 2. دالة الاتصال المباشر بـ Gemini (المصححة)
+// 2. دالة الاتصال الذكية (تجرب عدة موديلات)
 // ------------------------------------------------------------------
 async function askGemini(prompt, imageBase64 = null, mimeType = null) {
-    // نستخدم gemini-pro للنصوص، و gemini-1.5-flash للصور
-    let modelName = "gemini-pro";
     
-    // لو في صورة، لازم نستخدم موديل رؤية
-    if (imageBase64) modelName = "gemini-1.5-flash"; 
+    // قائمة الموديلات اللي حيجربها بالترتيب
+    // لو الأول فشل، يدخل على الثاني، وهكذا
+    const modelsToTry = [
+        "gemini-1.5-flash",    // الأسرع
+        "gemini-1.5-pro",      // الأذكى
+        "gemini-1.0-pro",      // الأكثر استقراراً (قديم)
+        "gemini-pro"           // الاسم الكلاسيكي
+    ];
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-    
-    // دمج شخصية كيدي مع الرسالة
-    const systemInstruction = "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي. ردك يجب أن يكون مفيداً ومختصراً.\n\nالسؤال: ";
-    const finalPrompt = systemInstruction + (prompt || "صف هذه الصورة");
+    const systemPrompt = "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. ردودك مختصرة ومفيدة وتستخدم الإيموجي.\n\nالسؤال: ";
+    const finalPrompt = systemPrompt + (prompt || "صف هذه الصورة");
 
+    // تجهيز البيانات
     let parts = [{ text: finalPrompt }];
-    
-    // إعداد الصورة لو وجدت
     if (imageBase64) {
-        parts = [
-            { text: finalPrompt },
-            {
-                inline_data: {
-                    mime_type: mimeType,
-                    data: imageBase64
-                }
+        parts.push({
+            inline_data: {
+                mime_type: mimeType,
+                data: imageBase64
             }
-        ];
+        });
     }
 
-    const payload = {
-        contents: [{ parts: parts }]
-    };
+    const payload = { contents: [{ parts: parts }] };
 
-    try {
-        const response = await axios.post(url, payload);
-        // استخراج النص
-        if (response.data && response.data.candidates && response.data.candidates.length > 0) {
-            return response.data.candidates[0].content.parts[0].text;
-        } else {
-            return "معليش، ما قدرت أفهم الرسالة دي 😅";
+    // حلقة تكرار تجرب الموديلات واحد واحد
+    for (const modelName of modelsToTry) {
+        try {
+            console.log(`🔄 Trying model: ${modelName}...`);
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+            
+            const response = await axios.post(url, payload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000 
+            });
+
+            if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                console.log(`✅ Success with ${modelName}`);
+                return response.data.candidates[0].content.parts[0].text;
+            }
+        } catch (error) {
+            console.error(`❌ Failed with ${modelName}: ${error.response?.status || error.message}`);
+            // لو فشل، اللوب حتكمل للموديل البعده طوالي
         }
-    } catch (error) {
-        console.error("Gemini Error Details:", JSON.stringify(error.response?.data || error.message));
-        return "حصلت مشكلة في الاتصال بموديل الذكاء الاصطناعي (404) أو النت ضعيف.";
     }
+
+    return "معليش يا مدير، جربت كل الطرق والشبكة ما ساعدتني 😅. حاول تاني بعد شوية.";
 }
 
 // ------------------------------------------------------------------
-// 3. إعداد عميل الواتساب
+// 3. إعداد الواتساب
 // ------------------------------------------------------------------
 console.log('🚀 Starting WhatsApp Client...');
 
@@ -124,50 +128,37 @@ client.on('qr', (qr) => {
 client.on('ready', () => {
     console.log('✅ WhatsApp is Ready!');
     isClientReady = true;
-    qrCodeImage = "<h1>✅ تم الربط بنجاح! كيدي جاهز للعمل.</h1>";
+    qrCodeImage = "<h1>✅ تم الربط بنجاح! كيدي جاهز.</h1>";
 });
 
 client.on('disconnected', (reason) => {
     console.log('❌ Disconnected:', reason);
     isClientReady = false;
-    qrCodeImage = "<h1>❌ انقطع الاتصال. جاري إعادة المحاولة...</h1>";
     client.initialize(); 
 });
 
-// ------------------------------------------------------------------
-// 4. معالجة الرسائل
-// ------------------------------------------------------------------
 client.on('message_create', async (msg) => {
     if (msg.fromMe) return;
 
     const body = msg.body.toLowerCase().trim();
-    const chat = await msg.getChat();
-
-    console.log(`📩 New Message from ${msg.from}: ${body}`);
 
     try {
-        // --- ميزة الاستيكرات ---
         if (msg.hasMedia && (body === 'ملصق' || body === 'sticker' || body === 'ستيكر')) {
             const media = await msg.downloadMedia();
             await client.sendMessage(msg.from, media, { 
-                sendMediaAsSticker: true, 
-                stickerName: "Kede Bot", 
-                stickerAuthor: "By Kede" 
+                sendMediaAsSticker: true, stickerName: "Kede", stickerAuthor: "Bot" 
             });
-            console.log('🖼️ Sticker sent!');
             return;
         }
 
-        // --- ميزة الذكاء الاصطناعي (كيدي) ---
         if (body.startsWith('كيدي') || body.startsWith('.ai')) {
-            await chat.sendStateTyping();
+            const chat = await msg.getChat();
+            chat.sendStateTyping(); 
 
             let promptText = body.replace('كيدي', '').replace('.ai', '').trim();
-            
             let imageBase64 = null;
             let mimeType = null;
 
-            // لو في صورة
             if (msg.hasMedia) {
                 const media = await msg.downloadMedia();
                 if (media.mimetype.startsWith('image/')) {
@@ -175,25 +166,18 @@ client.on('message_create', async (msg) => {
                     mimeType = media.mimetype;
                 }
             } else if (!promptText) {
-                await msg.reply("حبابك يا مدير! دايرني في شنو؟ 🤖");
+                await msg.reply("حبابك! دايرني في شنو؟ 🤖");
                 return;
             }
 
-            // الاتصال بـ Gemini
             const responseText = await askGemini(promptText, imageBase64, mimeType);
-            
-            // الرد
             await msg.reply(responseText);
-            console.log('🤖 AI Replied');
         }
-
-        // --- ميزة الفحص ---
-        if (body === '!ping') {
-            await msg.reply('Pong! 🏓 أنا شغال وسرعتي فل.');
-        }
+        
+        if (body === '!ping') await msg.reply('Pong! 🚀');
 
     } catch (error) {
-        console.error('❌ Error handling message:', error);
+        console.error('Error:', error.message);
     }
 });
 

@@ -12,7 +12,8 @@
     "puppeteer": "^19.11.1",
     "express": "^4.18.2",
     "@google/generative-ai": "latest",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "dotenv": "^16.4.5"
   },
   "engines": {
     "node": ">=18.0.0"

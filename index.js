@@ -5,7 +5,7 @@ const express = require('express');
 const app = express();
 
 // ------------------------------------------------------------------
-// 1. إعداد سيرفر الويب (عشان Koyeb والبوت يفضل شغال)
+// 1. إعداد سيرفر الويب
 // ------------------------------------------------------------------
 const port = process.env.PORT || 8000;
 let qrCodeImage = "<h1>جاري تشغيل كيدي... يرجى الانتظار ⏳</h1>";
@@ -41,28 +41,22 @@ app.listen(port, () => {
 });
 
 // ------------------------------------------------------------------
-// 2. إعداد الذكاء الاصطناعي (Gemini)
+// 2. إعداد الذكاء الاصطناعي (المفتاح داخل الكود)
 // ------------------------------------------------------------------
-// ... (باقي الكود فوق زي ما هو)
+// 🔥 تم وضع المفتاح مباشرة هنا
+const genAI = new GoogleGenerativeAI("AIzaSyA7yAQNsB3FsBJxaL86pUFErcJmcFFsbBk");
 
-// ... (الكود الفوق زي ما هو)
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
-    // غيرنا الاسم لـ "gemini-1.5-flash-latest" وده الاسم الرسمي المحدث
-    model: "gemini-1.5-flash-latest", 
+    model: "gemini-1.5-flash", // الاسم الصحيح مع المكتبة الجديدة
     systemInstruction: "أنت 'كيدي'، مساعد شخصي سوداني ذكي ومرح. تتحدث باللهجة السودانية وتستخدم الإيموجي."
 });
 
-// ... (الكود التحت زي ما هو)
-
-// ... (باقي الكود تحت زي ما هو)
 function fileToGenerativePart(base64Data, mimeType) {
     return { inlineData: { data: base64Data, mimeType } };
 }
 
 // ------------------------------------------------------------------
-// 3. إعداد عميل الواتساب (WhatsApp Client)
+// 3. إعداد عميل الواتساب
 // ------------------------------------------------------------------
 console.log('🚀 Starting WhatsApp Client...');
 
@@ -83,7 +77,6 @@ const client = new Client({
     }
 });
 
-// --- معالجة الباركود ---
 client.on('qr', (qr) => {
     console.log('⚡ QR Code Received');
     qrcode.toDataURL(qr, (err, url) => {
@@ -93,26 +86,24 @@ client.on('qr', (qr) => {
     });
 });
 
-// --- عند الجاهزية ---
 client.on('ready', () => {
     console.log('✅ WhatsApp is Ready!');
     isClientReady = true;
     qrCodeImage = "<h1>✅ تم الربط بنجاح! كيدي جاهز للعمل.</h1>";
 });
 
-// --- عند الانفصال ---
 client.on('disconnected', (reason) => {
     console.log('❌ Disconnected:', reason);
     isClientReady = false;
     qrCodeImage = "<h1>❌ انقطع الاتصال. جاري إعادة المحاولة...</h1>";
-    client.initialize(); // محاولة إعادة تشغيل
+    client.initialize(); 
 });
 
 // ------------------------------------------------------------------
-// 4. معالجة الرسائل (المخ والمنطق)
+// 4. معالجة الرسائل
 // ------------------------------------------------------------------
 client.on('message_create', async (msg) => {
-    // تجاهل رسائل البوت
+    // 1. تجاهل رسائل البوت
     if (msg.fromMe) return;
 
     const body = msg.body.toLowerCase().trim();
@@ -121,7 +112,7 @@ client.on('message_create', async (msg) => {
     console.log(`📩 New Message from ${msg.from}: ${body}`);
 
     try {
-        // --- ميزة 1: الاستيكرات (ملصق/sticker) ---
+        // --- ميزة الاستيكرات ---
         if (msg.hasMedia && (body === 'ملصق' || body === 'sticker' || body === 'ستيكر')) {
             const media = await msg.downloadMedia();
             await client.sendMessage(msg.from, media, { 
@@ -133,9 +124,8 @@ client.on('message_create', async (msg) => {
             return;
         }
 
-        // --- ميزة 2: الذكاء الاصطناعي (كيدي/AI) ---
+        // --- ميزة الذكاء الاصطناعي ---
         if (body.startsWith('كيدي') || body.startsWith('.ai')) {
-            // إظهار جارِ الكتابة...
             await chat.sendStateTyping();
 
             let promptText = body.replace('كيدي', '').replace('.ai', '').trim();
@@ -147,7 +137,6 @@ client.on('message_create', async (msg) => {
 
             let parts = [promptText];
 
-            // لو في صورة
             if (msg.hasMedia) {
                 const media = await msg.downloadMedia();
                 if (media.mimetype.startsWith('image/')) {
@@ -155,26 +144,22 @@ client.on('message_create', async (msg) => {
                 }
             }
 
-            // إرسال لـ Gemini
             const result = await model.generateContent(parts);
             const response = await result.response;
             const text = response.text();
 
-            // الرد
             await msg.reply(text);
             console.log('🤖 AI Replied');
         }
 
-        // --- ميزة 3: فحص الاتصال (Ping) ---
+        // --- ميزة الفحص ---
         if (body === '!ping') {
             await msg.reply('Pong! 🏓 أنا شغال وسرعتي فل.');
         }
 
     } catch (error) {
         console.error('❌ Error handling message:', error);
-        // await msg.reply("معليش، حصل خطأ بسيط. حاول تاني.");
     }
 });
 
-// تشغيل البوت
 client.initialize();

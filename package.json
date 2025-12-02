@@ -1,18 +1,27 @@
 {
-  "name": "kede-groq-bot",
-  "version": "3.0.0",
-  "description": "Smart WhatsApp Bot with Groq AI",
+  "name": "whatsapp-bot-kidi",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot using whatsapp-web.js and Puppeteer",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "node",
+    "puppeteer"
+  ],
+  "author": "Diaaeldin Ibrahim",
+  "license": "ISC",
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "form-data": "^4.0.0",
+    "node-cron": "^3.0.3",
+    "puppeteer": "^21.5.0",
     "qrcode": "^1.5.3",
-    "puppeteer": "^19.11.1",
-    "express": "^4.18.2",
-    "groq-sdk": "^0.3.3",
-    "dotenv": "^16.4.5"
+    "whatsapp-web.js": "^1.23.0"
   },
   "engines": {
     "node": ">=18.0.0"

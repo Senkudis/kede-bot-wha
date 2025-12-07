@@ -12,7 +12,7 @@ const OPENAI_API_KEY = 'sk-proj-gYG91b4NatIYw9wGkDttYGFXpsQOwuppLeaH7VCKTd627wdp
 const IMGBB_KEY = '8df2f63e10f44cf4f6f7d99382861e76';
 
 const DATA_FILE = path.join(__dirname, 'data.json');
-let data = { subscribers: [], pendingQuiz: {}, stats: {}, groupStats: {}, pendingGames: {} };
+let data = { subscribers: [], pendingQuiz: {}, stats: {}, groupStats: {}, pendingGames: {}, welcomedChats: [] };
 if (fs.existsSync(DATA_FILE)) {
   try { data = JSON.parse(fs.readFileSync(DATA_FILE)); } 
   catch (e) { console.error('خطأ في قراءة data.json', e); }
@@ -59,6 +59,65 @@ const greetings = [
   "صباح الخير يا زول! 🌞", "صبحك الله بالخير!", "صباح النور يا الغالي!"
 ];
 
+// معلومات إضافية للأوامر الجديدة
+const facts = [
+  "أكبر صحراء في العالم هي الصحراء الكبرى.",
+  "اللغة العربية هي خامس أكثر لغة تحدثًا في العالم.",
+  "السودان يقع في شمال شرق أفريقيا ويطل على البحر الأحمر."
+];
+
+const quotes = [
+  "كن التغيير الذي تريد أن تراه في العالم. - مهاتما غاندي",
+  "العقل زينة، والقلب دليل.",
+  "السعادة ليست محطة تصل إليها، بل طريقة للسفر."
+];
+
+const randomImages = [
+  { url: 'https://i.imgur.com/XYZ123.jpg', caption: 'صورة عشوائية جميلة 1' },
+  { url: 'https://i.imgur.com/ABC456.jpg', caption: 'صورة عشوائية جميلة 2' }
+];
+
+// دوال مساعدة للأوامر الجديدة
+async function getWeather(city) {
+  try {
+    const apiKey = '316d0c91eed64b65a15211006251008'; // لازم تضيف مفتاح API لو حتستخدم API طقس
+    const resp = await axios.get(`http://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&lang=ar`);
+    const data = resp.data;
+    return `الطقس في ${data.location.name}: ${data.current.condition.text}\nدرجة الحرارة: ${data.current.temp_c}°C\nالرطوبة: ${data.current.humidity}%\nالريح: ${data.current.wind_kph} كم/س`;
+  } catch {
+    return 'عذرًا، لم أتمكن من جلب بيانات الطقس.';
+  }
+}
+
+async function translateText(text, lang) {
+  try {
+    const resp = await axios.post('https://libretranslate.de/translate', {
+      q: text,
+      source: 'ar',
+      target: lang,
+      format: 'text'
+    });
+    return resp.data.translatedText;
+  } catch {
+    return 'خطأ في الترجمة.';
+  }
+}
+
+async function getDates() {
+  const today = new Date();
+  return `التاريخ اليوم:\n- الميلادي: ${today.toLocaleDateString('en-GB')}\n- الهجري: غير مدعوم حالياً`;
+}
+
+async function getNews() {
+  // مثال، ممكن تستخدم API أخبار حقيقية مع مفتاح
+  return 'آخر الأخبار: ... (هذه ميزة قيد التطوير)';
+}
+
+async function getMarketStatus() {
+  // مثال
+  return 'سوق الأسهم اليوم: ... (ميزة قيد التطوير)';
+}
+
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -93,13 +152,13 @@ client.on('ready', () => {
   schedulePrayerReminders();
 });
 
-// مواقيت الصلاة
 async function getPrayerTimes() {
   try {
     const res = await axios.get('https://api.aladhan.com/v1/timingsByCity', { params: { city: 'Khartoum', country: 'Sudan', method: 2 } });
     return res.data?.data?.timings || null;
   } catch { return null; }
 }
+
 async function schedulePrayerReminders() {
   prayerJobs.forEach(j => j.stop());
   prayerJobs = [];
@@ -122,6 +181,7 @@ cron.schedule('0 8 * * *', () => {
   const text = pickRandom(greetings);
   data.subscribers.forEach(id => client.sendMessage(id, text));
 }, { timezone: 'Africa/Khartoum' });
+
 cron.schedule('0 20 * * *', () => {
   const text = "مساء الخير! 😄 اكتب 'نكتة' عشان نضحك.";
   data.subscribers.forEach(id => client.sendMessage(id, text));
@@ -132,8 +192,59 @@ async function getContactNameOrNumber(id) {
   catch { return id; }
 }
 
+// رسالة الترحيب وقائمة الأوامر
+function getCommandsList() {
+  return `السلام عليكم ورحمة الله معكم كيدي v1.2 من تطوير ضياءالدين ابراهيم
+تم تطويري بغرض الترفيه والمرح وجمع المعلومات
+إليك طرق استخدامي ولكي تظهر لك هذه اللائحة اكتب فقط "اوامر"
+
+الأوامر المتاحة:
+- اشترك: للاشتراك في التذكيرات
+- الغاء: لإلغاء الاشتراك
+- نكتة: للحصول على نكتة عفوية
+- احصائيات القروب: عرض إحصائيات القروب
+- العب رقم: لعبة تخمين رقم من 1-10
+- لغز: سؤال تريفيا
+- حجر، ورق، مقص: لعبة حجر ورق مقص
+- ذكاء [سؤالك]: تفاعل مع ذكاء اصطناعي
+- طقس [اسم المدينة]: لمعرفة حالة الطقس
+- ترجم [النص] إلى [اللغة]: لترجمة النص
+- التاريخ: لمعرفة التاريخ اليوم
+- معلومة: معلومة عشوائية
+- اقتباس: اقتباس عشوائي
+- اخبار: آخر الأخبار (قيد التطوير)
+- سوق: حالة السوق (قيد التطوير)
+- صورة: إرسال صورة عشوائية
+- مساعدة تقنية: رابط الدعم التقني
+
+رقم المطور: 249112046348
+رابط قروب الواتساب: https://chat.whatsapp.com/GZmrZ8EETk84SreBpM6tPp?mode=ac_t
+`;
+}
+
+client.on('message_create', async (msg) => {
+  // رسالة ترحيب عند إضافة البوت لقروب
+  if (msg.from.endsWith('@g.us')) {
+    const chat = await msg.getChat();
+    if (chat.participants.find(p => p.id._serialized === client.info.wid._serialized)) {
+      if (!data.welcomedChats.includes(chat.id._serialized)) {
+        data.welcomedChats.push(chat.id._serialized);
+        saveData();
+        chat.sendMessage(getCommandsList());
+      }
+    }
+  }
+});
+
 client.on('message', async msg => {
   const from = msg.from, body = msg.body.trim();
+
+  // ترحيب أول رسالة مباشرة (للفرد)
+  if (!msg.from.endsWith('@g.us') && !data.welcomedChats.includes(from)) {
+    data.welcomedChats.push(from);
+    saveData();
+    msg.reply(getCommandsList());
+  }
 
   // ردود عفوية على كلمة النداء "كيدي-بوت-روبوت"
   if (body === 'كيدي-بوت-روبوت') {
@@ -163,6 +274,8 @@ client.on('message', async msg => {
   }
 
   // أوامر
+  if (body === 'اوامر') return msg.reply(getCommandsList());
+
   if (body === 'اشترك') return msg.reply(data.subscribers.includes(from) ? 'مشترك بالفعل' : (data.subscribers.push(from), saveData(), '✅ اشتركت'));
   if (body === 'الغاء') return msg.reply(data.subscribers.includes(from) ? (data.subscribers.splice(data.subscribers.indexOf(from),1), saveData(), '✅ ألغيت الاشتراك') : 'لست مشتركًا');
   if (body === 'نكتة') return msg.reply(pickRandom(jokes));
@@ -180,7 +293,6 @@ client.on('message', async msg => {
     return msg.reply(`📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\n🏆 الأكثر تفاعل: ${topName} (${topCount})\n😴 الأقل تفاعل: ${bottomName} (${bottomCount})`);
   }
 
-  // ألعاب
   if (body === 'العب رقم') { data.pendingGames[from] = { type: 'guess', number: Math.floor(Math.random()*10)+1, tries: 0 }; saveData(); return msg.reply('اخترت رقم 1-10، خمّن!'); }
   if (data.pendingGames[from]?.type === 'guess' && /^\d+$/.test(body)) {
     const g = data.pendingGames[from], guess = +body;
@@ -202,7 +314,6 @@ client.on('message', async msg => {
     return msg.reply(`أنا اخترت: ${b}\n${win}`);
   }
 
-  // ذكاء اصطناعي
   if (body === 'ذكاء') return msg.reply('🧠 اكتب: ذكاء [سؤالك]');
   if (body.startsWith('ذكاء ')) {
     const prompt = body.slice(6).trim();
@@ -212,11 +323,9 @@ client.on('message', async msg => {
     } catch { return msg.reply('خطأ في OpenAI'); }
   }
 
-  // تحية
-  if (body.includes('سلام')) return msg.reply('وعليكم السلام يا زول 👋');
+  if (body.includes('السلام')) return msg.reply('وعليكم السلام يا زول 👋');
 
-  // الموقع
-  if (body === 'موقع') return client.sendMessage(from, new Location(15.5007, 32.5599, '📍 الخرطوم'));
+// الموق
 });
 
 client.initialize();

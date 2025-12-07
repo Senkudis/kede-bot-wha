@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, LocalAuth } = require('whatsapp-web.js'); // Removed unused Location
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js'); // ✅ تم التعديل: إضافة MessageMedia
 const fs = require('fs');
 const cron = require('node-cron');
 const path = require('path');
@@ -111,8 +111,9 @@ const quotes = [
 // ==================== SERVICE FUNCTIONS ====================
 async function getWeather(city) {
     try {
+        // ✅ تم التعديل: استخدام https
         const resp = await axios.get(
-            http://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar,
+            https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar,
             { timeout: 5000 }
         );
         const d = resp.data;
@@ -610,6 +611,7 @@ client.on('message', async msg => {
     if (body === 'صورة') {
         const imageUrl = await getRandomImage();
         if (imageUrl) {
+            // ✅ تم التعديل: أصبح MessageMedia معرفاً الآن وسيعمل هذا الكود
             const media = await MessageMedia.fromUrl(imageUrl);
             return msg.reply(media, null, { caption: '🖼 صورة عشوائية' });
         }

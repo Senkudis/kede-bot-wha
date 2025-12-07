@@ -1,33 +1,21 @@
 {
-  "name": "whatsapp-bot-railway",
-  "version": "2.0.0",
-  "description": "WhatsApp Bot for Railway deployment",
+  "name": "whatsapp-bot-kidi",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot",
   "main": "index.js",
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
-    "qrcode": "^1.5.3",
-    "qrcode-terminal": "^0.12.0",
-    "puppeteer": "^21.6.1",
-    "mongoose": "^8.0.3",
-    "wwebjs-mongo": "^1.1.0",
-    "axios": "^1.6.2",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
     "form-data": "^4.0.0",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "puppeteer": "^23.0.0",
+    "qrcode": "^1.5.3",
+    "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
-  },
-  "keywords": ["whatsapp", "bot", "railway", "puppeteer"],
-  "author": "ضياءالدين ابراهيم",
-  "license": "MIT"
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

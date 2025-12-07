@@ -1,19 +1,11 @@
 {
   "name": "whatsapp-bot-kidi",
   "version": "1.0.0",
-  "description": "WhatsApp Bot using whatsapp-web.js and Puppeteer",
+  "description": "WhatsApp Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [
-    "whatsapp",
-    "bot",
-    "node",
-    "puppeteer"
-  ],
-  "author": "Diaaeldin Ibrahim",
-  "license": "ISC",
   "dependencies": {
     "axios": "^1.6.0",
     "dotenv": "^16.3.1",

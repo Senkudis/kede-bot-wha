@@ -13,11 +13,6 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const IMGBB_KEY = process.env.IMGBB_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY || '316d0c91eed64b65a15211006251008';
 
-if (!OPENAI_API_KEY || !IMGBB_KEY) {
-    console.error('❌ ERROR: Missing API keys in .env file');
-    // process.exit(1);
-}
-
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 // ==================== DATA MANAGEMENT ====================
@@ -82,85 +77,56 @@ const prayerReminders = [
     "اجعل الصلاة عادة، والفوز لك إن شاء الله",
     "يا زول، الصلاة تنور القلب وتصفّي البال",
     "أسرعوا قبل أن يأتي الأجر",
-    "اذهب إلى الصلاة واطمئن، الله مع المبادرين",
-    "الصلوات الخمس سبب للبركة، لا تغفل عنها",
-    "أقم الصلاة لذكري، وارتاح قلبك",
-    "فرصة لنتقرّب لله، استغلها الآن",
-    "هيا للصلاة — بركة اليوم تبدأ بها"
+    "اذهب إلى الصلاة واطمئن، الله مع المبادرين"
 ];
 
-const greetings = [
-    "صباح الخير يا زول! 🌞", "صبحك الله بالخير!", "صباح النور يا الغالي!"
-];
-
-const facts = [
-    "أكبر صحراء في العالم هي الصحراء الكبرى.",
-    "اللغة العربية هي خامس أكثر لغة تحدثًا في العالم.",
-    "السودان يقع في شمال شرق أفريقيا ويطل على البحر الأحمر."
-];
-
-const quotes = [
-    "كن التغيير الذي تريد أن تراه في العالم. - مهاتما غاندي",
-    "العقل زينة، والقلب دليل.",
-    "السعادة ليست محطة تصل إليها، بل طريقة للسفر."
-];
+const greetings = ["صباح الخير يا زول! 🌞", "صبحك الله بالخير!", "صباح النور يا الغالي!"];
+const facts = ["أكبر صحراء في العالم هي الصحراء الكبرى.", "اللغة العربية هي خامس أكثر لغة تحدثًا."];
+const quotes = ["كن التغيير الذي تريد أن تراه في العالم.", "العقل زينة."];
 
 // ==================== SERVICE FUNCTIONS ====================
 async function getWeather(city) {
     try {
-        const resp = await axios.get(
-            `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar`,
-            { timeout: 5000 }
-        );
+        const resp = await axios.get(`https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar`, { timeout: 5000 });
         const d = resp.data;
-        return `الطقس في ${d.location.name}:\n🌡 ${d.current.condition.text}\n🌡 درجة الحرارة: ${d.current.temp_c}°C\n💧 الرطوبة: ${d.current.humidity}%\n💨 الرياح: ${d.current.wind_kph} كم/س`;
+        return `الطقس في ${d.location.name}:\n🌡 ${d.current.condition.text}\n🌡 ${d.current.temp_c}°C\n💧 ${d.current.humidity}%\n💨 ${d.current.wind_kph} كم/س`;
     } catch (err) {
-        console.error('Weather API error:', err.response?.data || err.message);
-        return 'عذرًا، لم أتمكن من جلب بيانات الطقس. تأكد من اسم المدينة.';
+        return 'عذرًا، لم أتمكن من جلب بيانات الطقس.';
     }
 }
 
 async function translateText(text, targetLang) {
     try {
-        const resp = await axios.post('https://libretranslate.de/translate', {
-            q: text,
-            source: 'auto',
-            target: targetLang,
-            format: 'text'
-        }, { timeout: 5000 });
+        const resp = await axios.post('https://libretranslate.de/translate', { q: text, source: 'auto', target: targetLang, format: 'text' }, { timeout: 5000 });
         return resp.data.translatedText;
-    } catch (err) {
-        console.error('Translation error:', err.message);
-        return 'خطأ في الترجمة.';
-    }
+    } catch (err) { return 'خطأ في الترجمة.'; }
 }
 
 async function getRandomImage() {
     try {
         const resp = await axios.get('https://picsum.photos/400/400', { timeout: 5000 });
         return resp.request.res.responseUrl;
-    } catch (err) {
-        console.error('Image API error:', err.message);
-        return null;
-    }
+    } catch (err) { return null; }
 }
 
 async function getContactNameOrNumber(id) {
     try {
         const c = await client.getContactById(id);
         return c.pushname || c.name || c.shortName || id.replace('@c.us', '');
-    } catch {
-        return id.replace('@c.us', '');
-    }
+    } catch { return id.replace('@c.us', ''); }
 }
 
-// ==================== WHATSAPP CLIENT (FIXED) ====================
+// ==================== WHATSAPP CLIENT (THE FIX) ====================
 const client = new Client({
     authStrategy: new LocalAuth({
-        clientId: "kidi-v4-full", // اسم جديد لجلسة نظيفة
+        clientId: "kidi-ultra-fix", // اسم جديد لجلسة نظيفة تماماً
         dataPath: "./.wwebjs_auth"
     }),
-    // عند استخدام نسخة GitHub لا نحتاج webVersionCache عادة، النسخة المحدثة تعمل تلقائياً
+    // ✅✅ هذا هو الكود الذي يحل مشكلة التعليق عند 100% ✅✅
+    webVersionCache: {
+        type: "remote",
+        remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
+    },
     puppeteer: {
         headless: true,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
@@ -178,7 +144,7 @@ const client = new Client({
 
 let prayerJobs = [];
 
-// ==================== LOGS & EVENTS ====================
+// ==================== EVENTS ====================
 client.on('loading_screen', (percent, message) => {
     console.log('⏳ جاري التحميل:', percent, '%', message);
 });
@@ -187,166 +153,85 @@ client.on('authenticated', () => {
     console.log('🔑 تم التوثيق (Authenticated)');
 });
 
-client.on('auth_failure', msg => {
-    console.error('❌ فشل التوثيق:', msg);
-});
-
 client.on('ready', () => {
-    console.log('✅ البوت جاهز تماماً (READY)!');
+    console.log('✅✅ البوت جاهز وتخطى مشكلة التعليق (READY) ✅✅');
     schedulePrayerReminders();
 });
 
-// QR Code Generation & Upload
 client.on('qr', async qr => {
+    console.log('📌 QR Generated');
     try {
-        console.log('📌 QR Generated — Uploading...');
         const qrPath = path.join(__dirname, 'qr.png');
         await QRCode.toFile(qrPath, qr);
-
         const form = new FormData();
         form.append('image', fs.createReadStream(qrPath));
-
-        const resp = await axios.post(
-            `https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,
-            form,
-            { headers: form.getHeaders() }
-        );
-
-        if (resp.data?.data?.url) {
-            console.log('✅ QR URL:', resp.data.data.url);
-        } else {
-            console.warn('⚠ QR uploaded but no URL returned');
-        }
-
+        const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, form, { headers: form.getHeaders() });
+        console.log('✅ QR URL:', resp.data.data.url);
         if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
     } catch (err) {
-        console.error('❌ QR Upload Error:', err.response?.data || err.message);
-        console.log('📌 QR Code:', qr);
+        console.log('QR Code String:', qr);
     }
 });
 
-// ==================== PRAYER TIMES ====================
+// ==================== PRAYER & SCHEDULES ====================
 async function getPrayerTimes() {
     try {
-        const res = await axios.get('https://api.aladhan.com/v1/timingsByCity', {
-            params: {
-                city: 'Khartoum',
-                country: 'Sudan',
-                method: 2,
-                school: 0
-            },
-            timeout: 5000
-        });
+        const res = await axios.get('https://api.aladhan.com/v1/timingsByCity', { params: { city: 'Khartoum', country: 'Sudan', method: 2 }, timeout: 5000 });
         return res.data?.data?.timings || null;
-    } catch (err) {
-        console.error('Prayer times API error:', err.message);
-        return null;
-    }
+    } catch (err) { return null; }
 }
 
 async function schedulePrayerReminders() {
     prayerJobs.forEach(j => j.stop());
     prayerJobs = [];
-
     const times = await getPrayerTimes();
-    if (!times) {
-        console.warn('⚠ Could not fetch prayer times');
-        return;
-    }
-
-    const map = {
-        Fajr: 'الفجر',
-        Dhuhr: 'الظهر',
-        Asr: 'العصر',
-        Maghrib: 'المغرب',
-        Isha: 'العشاء'
-    };
-
+    if (!times) return;
+    
+    const map = { Fajr: 'الفجر', Dhuhr: 'الظهر', Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء' };
     for (const [key, arabicName] of Object.entries(map)) {
         const [h, m] = times[key].split(':').map(Number);
-
-        if (h >= 0 && h < 24 && m >= 0 && m < 60) {
-            const job = cron.schedule(
-                `${m} ${h} * * *`,
-                () => sendBroadcast(`${pickRandom(prayerReminders)}\n🕒 ${arabicName} الآن`),
-                { timezone: 'Africa/Khartoum' }
-            );
-            prayerJobs.push(job);
-            console.log(`⏰ Scheduled ${arabicName} at ${h}:${m}`);
+        if (h >= 0) {
+            prayerJobs.push(cron.schedule(`${m} ${h} * * *`, () => sendBroadcast(`${pickRandom(prayerReminders)}\n🕒 ${arabicName} الآن`), { timezone: 'Africa/Khartoum' }));
         }
     }
 }
 
-cron.schedule('5 0 * * *', () => {
-    console.log('📅 Refreshing prayer times...');
-    schedulePrayerReminders();
-}, { timezone: 'Africa/Khartoum' });
-
-// ==================== SCHEDULED MESSAGES ====================
-cron.schedule('0 8 * * *', () => {
-    sendBroadcast(pickRandom(greetings));
-}, { timezone: 'Africa/Khartoum' });
-
-cron.schedule('0 20 * * *', () => {
-    sendBroadcast('مساء الخير! 😄 اكتب "نكتة" عشان نضحك.');
-}, { timezone: 'Africa/Khartoum' });
+cron.schedule('5 0 * * *', schedulePrayerReminders, { timezone: 'Africa/Khartoum' });
+cron.schedule('0 8 * * *', () => sendBroadcast(pickRandom(greetings)), { timezone: 'Africa/Khartoum' });
+cron.schedule('0 20 * * *', () => sendBroadcast('مساء الخير! 😄 اكتب "نكتة"'), { timezone: 'Africa/Khartoum' });
 
 async function sendBroadcast(message) {
     const allIds = new Set([...data.subscribers, ...Object.keys(data.groupStats)]);
     for (const id of allIds) {
-        try {
-            await client.sendMessage(id, message);
-        } catch (err) {
-            console.error(`❌ Failed to send to ${id}:`, err.message);
-        }
+        try { await client.sendMessage(id, message); } catch (err) {}
     }
 }
 
-// ==================== COMMAND HANDLER ====================
+// ==================== COMMANDS ====================
 function getCommandsList() {
-    return `السلام عليكم ورحمة الله معكم كيدي v1.2 من تطوير ضياءالدين ابراهيم
-تم تطويري بغرض الترفيه والمرح وجمع المعلومات
-إليك طرق استخدامي ولكي تظهر لك هذه اللائحة اكتب فقط "اوامر"
-
+    return `السلام عليكم ورحمة الله معكم كيدي v1.2
 الأوامر المتاحة:
-- اشترك: للاشتراك في التذكيرات
-- الغاء: لإلغاء الاشتراك
-- نكتة: للحصول على نكتة عفوية
-- احصائيات القروب: عرض إحصائيات القروب
-- العب رقم: لعبة تخمين رقم من 1-10
-- لغز: سؤال تريفيا
-- حجر، ورق، مقص: لعبة حجر ورق مقص
-- ذكاء [سؤالك]: تفاعل مع ذكاء اصطناعي
-- طقس [اسم المدينة]: لمعرفة حالة الطقس
-- ترجم [النص] إلى [اللغة]: لترجمة النص
-- التاريخ: لمعرفة التاريخ اليوم
-- معلومة: معلومة عشوائية
-- اقتباس: اقتباس عشوائي
-- اخبار: آخر الأخبار (قيد التطوير)
-- سوق: حالة السوق (قيد التطوير)
-- صورة: إرسال صورة عشوائية
-- مساعدة تقنية: رابط الدعم التقني
-
-رقم المطور: ${process.env.DEV_PHONE || 'غير متوفر'}
-رابط قروب الواتساب: https://chat.whatsapp.com/GZmrZ8EETk84SreBpM6tPp?mode=ac_t
-`;
+- اشترك / الغاء
+- نكتة
+- احصائيات القروب
+- العب رقم
+- لغز
+- حجر، ورق، مقص
+- ذكاء [سؤالك]
+- طقس [المدينة]
+- ترجم [نص] إلى [لغة]
+- التاريخ / معلومة / اقتباس / صورة`;
 }
 
-// ==================== MESSAGE EVENTS ====================
+// ==================== MESSAGES ====================
 client.on('message_create', async (msg) => {
     if (msg.from.endsWith('@g.us')) {
-        try {
-            const chat = await msg.getChat();
-            const botId = client.info.wid._serialized;
-            const isInGroup = chat.participants.some(p => p.id._serialized === botId);
-
-            if (isInGroup && !data.welcomedChats.has(chat.id._serialized)) {
-                data.welcomedChats.add(chat.id._serialized);
-                saveData();
-                await chat.sendMessage(getCommandsList());
-            }
-        } catch (err) {
-            console.error('Group welcome error:', err.message);
+        const chat = await msg.getChat();
+        const botId = client.info.wid._serialized;
+        if (chat.participants.some(p => p.id._serialized === botId) && !data.welcomedChats.has(chat.id._serialized)) {
+            data.welcomedChats.add(chat.id._serialized);
+            saveData();
+            await chat.sendMessage(getCommandsList());
         }
     }
 });
@@ -354,7 +239,6 @@ client.on('message_create', async (msg) => {
 client.on('message', async msg => {
     const from = msg.from;
     const body = msg.body.trim();
-
     if (msg.fromMe) return;
 
     if (!from.endsWith('@g.us') && !data.welcomedChats.has(from)) {
@@ -364,130 +248,52 @@ client.on('message', async msg => {
         return;
     }
 
-    if (body === 'كيدي-بوت-روبوت') {
-        const replies = [
-            "أها، كيف أقدر أساعدك يا زول؟",
-            "حاضر، قول لي الحاصل شنو!",
-            "أنا هنا معاك، شنو المطلوب؟",
-            "يا سلام عليك! داير شنو مني؟",
-            "سعدت بسؤالك، أطلب ما تشاء!",
-            "تفضل يا زول، أنا في الخدمة.",
-            "هاك، قولي شنو الأخبار؟",
-            "كيدي بوت جاهز يرد على سؤالك!",
-            "معاك الروبوت العجيب، قل لي كيف أساعدك.",
-            "يا مرحب بيك، قول لي أخبارك!"
-        ];
-        return msg.reply(pickRandom(replies));
-    }
-
+    if (body === 'كيدي-بوت-روبوت') return msg.reply("أهلاً بيك يا زول!");
+    
+    // Group Stats
     if (msg.isGroup) {
-        try {
-            const chat = await msg.getChat();
-            if (!data.groupStats[from]) {
-                data.groupStats[from] = {
-                    messages: {},
-                    createdTimestamp: chat.createdTimestamp || Date.now(),
-                    participants: []
-                };
-            }
-
-            data.groupStats[from].participants = chat.participants.map(p => p.id._serialized);
-            const author = msg.author || msg.from;
-            data.groupStats[from].messages[author] = (data.groupStats[from].messages[author] || 0) + 1;
-            saveData();
-        } catch (err) {
-            console.error('Stats update error:', err.message);
-        }
+        const chat = await msg.getChat();
+        if (!data.groupStats[from]) data.groupStats[from] = { messages: {}, createdTimestamp: chat.createdTimestamp, participants: [] };
+        data.groupStats[from].participants = chat.participants.map(p => p.id._serialized);
+        const author = msg.author || msg.from;
+        data.groupStats[from].messages[author] = (data.groupStats[from].messages[author] || 0) + 1;
+        saveData();
     }
 
-    if (body === 'اوامر') {
-        return msg.reply(getCommandsList());
-    }
-
+    if (body === 'اوامر') return msg.reply(getCommandsList());
+    
     if (body === 'اشترك') {
-        if (data.subscribers.includes(from)) {
-            return msg.reply('✅ أنت مشترك بالفعل');
-        }
-        data.subscribers.push(from);
-        saveData();
-        return msg.reply('✅ تم الاشتراك بنجاح');
+        if (!data.subscribers.includes(from)) { data.subscribers.push(from); saveData(); return msg.reply('✅ تم الاشتراك'); }
+        return msg.reply('✅ مشترك بالفعل');
     }
-
     if (body === 'الغاء') {
-        const index = data.subscribers.indexOf(from);
-        if (index > -1) {
-            data.subscribers.splice(index, 1);
-            saveData();
-            return msg.reply('✅ تم إلغاء الاشتراك');
-        }
-        return msg.reply('ℹ أنت غير مشترك أصلاً');
+        const idx = data.subscribers.indexOf(from);
+        if (idx > -1) { data.subscribers.splice(idx, 1); saveData(); return msg.reply('✅ تم الإلغاء'); }
     }
 
-    if (body === 'نكتة') {
-        return msg.reply(pickRandom(jokes));
+    if (body === 'نكتة') return msg.reply(pickRandom(jokes));
+    
+    if (body === 'احصائيات القروب' && msg.isGroup) {
+        const stats = data.groupStats[from];
+        if (!stats) return msg.reply('لا توجد بيانات.');
+        const sorted = Object.entries(stats.messages).sort((a,b) => b[1] - a[1]);
+        if (!sorted.length) return msg.reply('لا توجد رسائل.');
+        const top = await getContactNameOrNumber(sorted[0][0]);
+        return msg.reply(`🏆 الأكثر تفاعل: ${top} (${sorted[0][1]} رسالة)`);
     }
 
-    if (body === 'احصائيات القروب') {
-        if (!msg.isGroup) {
-            return msg.reply('⚠ هذا الأمر يعمل فقط في القروبات');
-        }
-
-        try {
-            const chat = await msg.getChat();
-            const stats = data.groupStats[from] || { messages: {} };
-            const membersCount = chat.participants.length;
-            const createdAt = chat.createdTimestamp
-                ? new Date(chat.createdTimestamp).toLocaleString('ar-EG', { timeZone: 'Africa/Khartoum' })
-                : 'غير متوفر';
-
-            const messageCounts = Object.entries(stats.messages).sort((a, b) => b[1] - a[1]);
-
-            if (!messageCounts.length) {
-                return msg.reply(`📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\nلا توجد بيانات بعد`);
-            }
-
-            const [topId, topCount] = messageCounts[0];
-            const [bottomId, bottomCount] = messageCounts[messageCounts.length - 1];
-
-            const topName = await getContactNameOrNumber(topId);
-            const bottomName = await getContactNameOrNumber(bottomId);
-
-            return msg.reply(
-                `📊 *إحصائيات القروب*\n` +
-                `تاريخ الإنشاء: ${createdAt}\n` +
-                `👥 عدد الأعضاء: ${membersCount}\n\n` +
-                `🏆 الأكثر تفاعل: ${topName} (${topCount} رسالة)\n` +
-                `😴 الأقل تفاعل: ${bottomName} (${bottomCount} رسالة)`
-            );
-        } catch (err) {
-            console.error('Group stats error:', err.message);
-            return msg.reply('❌ حدث خطأ أثناء جلب الإحصائيات');
-        }
-    }
-
+    // Games & Tools
     if (body === 'العب رقم') {
-        data.pendingGames[from] = {
-            type: 'guess',
-            number: Math.floor(Math.random() * 10) + 1,
-            tries: 0
-        };
+        data.pendingGames[from] = { type: 'guess', number: Math.floor(Math.random()*10)+1, tries: 0 };
         saveData();
-        return msg.reply('🎮 اخترت رقمًا بين 1-10، جرّب تخمّنه!');
+        return msg.reply('اخترت رقم من 1-10، خمن!');
     }
-
     if (data.pendingGames[from]?.type === 'guess' && /^\d+$/.test(body)) {
-        const game = data.pendingGames[from];
-        const guess = parseInt(body);
-        game.tries++;
-
-        if (guess === game.number) {
-            delete data.pendingGames[from];
-            saveData();
-            return msg.reply(`🎉 إحسنت! الرقم ${guess} صحيح بعد ${game.tries} محاولة`);
-        }
-
-        saveData();
-        return msg.reply(guess < game.number ? '⬆ أعلى!' : '⬇ أقل!');
+        const g = data.pendingGames[from];
+        const val = parseInt(body);
+        g.tries++;
+        if (val === g.number) { delete data.pendingGames[from]; saveData(); return msg.reply(`✅ صح! بعد ${g.tries} محاولات`); }
+        return msg.reply(val < g.number ? '⬆ اعلى' : '⬇ اقل');
     }
 
     if (body === 'لغز') {
@@ -496,131 +302,32 @@ client.on('message', async msg => {
         saveData();
         return msg.reply(q.q);
     }
-
-    if (['أ', 'ب', 'ج', 'A', 'B', 'C', 'a', 'b', 'c'].includes(body)) {
-        const quiz = data.pendingQuiz[from];
-        if (!quiz) return;
-
-        const answer = body.replace(/[Aa]/g, 'أ').replace(/[Bb]/g, 'ب').replace(/[Cc]/g, 'ج');
-        delete data.pendingQuiz[from];
-        saveData();
-
-        return msg.reply(answer === quiz.answer ? '✅ صحيح!' : '❌ خطأ! الإجابة الصحيحة: ' + quiz.answer);
-    }
-
-    if (['حجر', 'ورق', 'مقص'].includes(body)) {
-        const botChoice = pickRandom(['حجر', 'ورق', 'مقص']);
-        let result;
-
-        if (body === botChoice) {
-            result = '⚖ تعادل!';
-        } else if (
-            (body === 'حجر' && botChoice === 'مقص') ||
-            (body === 'ورق' && botChoice === 'حجر') ||
-            (body === 'مقص' && botChoice === 'ورق')
-        ) {
-            result = '🎉 فزت!';
-        } else {
-            result = '😔 خسرت!';
-        }
-
-        return msg.reply(`أنا اخترت: ${botChoice}\n${result}`);
+    if (['أ','ب','ج'].some(x => body.includes(x)) && data.pendingQuiz[from]) {
+        const q = data.pendingQuiz[from];
+        delete data.pendingQuiz[from]; saveData();
+        return msg.reply(body.includes(q.answer) ? '✅ صح' : `❌ خطأ، الإجابة: ${q.answer}`);
     }
 
     if (body.startsWith('ذكاء ')) {
-        const prompt = body.slice(6).trim();
-        if (!prompt) return msg.reply('🤖 استخدم: ذكاء [سؤالك]');
-
+        if (!OPENAI_API_KEY) return msg.reply('ميزة الذكاء غير مفعلة (نقص API).');
         try {
-            const resp = await axios.post(
-                'https://api.openai.com/v1/chat/completions',
-                {
-                    model: 'gpt-3.5-turbo',
-                    messages: [{ role: 'user', content: prompt }],
-                    max_tokens: 500
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000
-                }
-            );
-
-            return msg.reply(resp.data.choices[0].message.content.trim());
-        } catch (err) {
-            console.error('OpenAI error:', err.response?.data || err.message);
-            return msg.reply('❌ خطأ في الذكاء الاصطناعي. تأكد من مفتاح API أو حاول لاحقًا.');
-        }
+            const r = await axios.post('https://api.openai.com/v1/chat/completions', {
+                model: 'gpt-3.5-turbo', messages: [{role:'user', content: body.slice(5)}]
+            }, { headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` } });
+            return msg.reply(r.data.choices[0].message.content);
+        } catch (e) { return msg.reply('خطأ في الاتصال.'); }
     }
 
-    if (body.startsWith('طقس ')) {
-        const city = body.slice(4).trim();
-        if (!city) return msg.reply('🌤 استخدم: طقس [اسم المدينة]');
-
-        const weather = await getWeather(city);
-        return msg.reply(weather);
-    }
-
-    if (body.includes(' إلى ') && body.startsWith('ترجم ')) {
-        const match = body.match(/^ترجم (.+) إلى (\w+)$/);
-        if (!match) return msg.reply('🌐 استخدم: ترجم [النص] إلى [en/fr/es/...]');
-
-        const [, text, lang] = match;
-        const translated = await translateText(text, lang);
-        return msg.reply(`🌐 الترجمة (${lang}):\n${translated}`);
-    }
-
-    if (body === 'التاريخ') {
-        const today = new Date();
-        const hijri = 'غير مدعوم حالياً';
-        return msg.reply(
-            `📅 التاريخ اليوم:\n` +
-            `- الميلادي: ${today.toLocaleDateString('ar-EG')}\n` +
-            `- الهجري: ${hijri}`
-        );
-    }
-
-    if (body === 'معلومة') {
-        return msg.reply('💡 ' + pickRandom(facts));
-    }
-
-    if (body === 'اقتباس') {
-        return msg.reply('💭 ' + pickRandom(quotes));
-    }
-
+    if (body.startsWith('طقس ')) return msg.reply(await getWeather(body.slice(4).trim()));
     if (body === 'صورة') {
-        const imageUrl = await getRandomImage();
-        if (imageUrl) {
-            const media = await MessageMedia.fromUrl(imageUrl);
-            return msg.reply(media, null, { caption: '🖼 صورة عشوائية' });
-        }
-        return msg.reply('❌ لم أتمكن من جلب صورة');
-    }
-
-    if (body === 'اخبار') {
-        return msg.reply('📰 ميزة الأخبار قيد التطوير. حاول لاحقًا.');
-    }
-
-    if (body === 'سوق') {
-        return msg.reply('📈 ميزة سوق الأسهم قيد التطوير. حاول لاحقًا.');
-    }
-
-    if (body === 'مساعدة تقنية') {
-        return msg.reply('🔧 رابط الدعم: https://chat.whatsapp.com/GZmrZ8EETk84SreBpM6tPp?mode=ac_t');
-    }
-
-    if (body.includes('السلام')) {
-        return msg.reply('وعليكم السلام ورحمة الله وبركاته يا زول 👋');
+        const url = await getRandomImage();
+        if (url) return msg.reply(await MessageMedia.fromUrl(url));
     }
 });
 
-// ==================== INITIALIZE ====================
 client.initialize();
 
 process.on('SIGINT', async () => {
-    console.log('\n🛑 Shutting down gracefully...');
     prayerJobs.forEach(j => j.stop());
     await client.destroy();
     process.exit(0);

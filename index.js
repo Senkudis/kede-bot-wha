@@ -258,7 +258,7 @@ function getCommandsList() {
 رابط قروب الواتساب: https://chat.whatsapp.com/GZmrZ8EETk84SreBpM6tPp?mode=ac_t
 `;
 }
-client.on('message_create', async (msg) => {
+client.on('message', async (msg) => {
   // رسالة ترحيب عند إضافة البوت لقروب
   if (msg.from.endsWith('@g.us')) {
     const chat = await msg.getChat();

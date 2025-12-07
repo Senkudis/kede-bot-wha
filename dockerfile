@@ -1,28 +1,30 @@
-FROM node:18-slim
+# استخدام صورة جاهزة من فريق Puppeteer تحتوي على كروم وكل المكتبات اللازمة
+FROM ghcr.io/puppeteer/puppeteer:latest
 
-# 1. تثبيت متصفح Google Chrome المستقر ومكتبات النظام الضرورية
-# هذا يضمن أن البوت يعمل بمتصفح حقيقي وليس نسخة تجريبية
-RUN apt-get update \
-    && apt-get install -y wget gnupg \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
-      --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+# تبديل المستخدم إلى root لتثبيت الحزم وضبط الصلاحيات
+USER root
 
-# 2. إعداد متغيرات البيئة
-# هذا السطر يمنع Puppeteer من تحميل الكروم لانه موجود بالفعل في النظام (يوفر الوقت والذاكرة)
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+# تحديد مسار العمل
+WORKDIR /usr/src/app
 
-WORKDIR /app
-
+# نسخ ملفات تعريف المشروع
 COPY package*.json ./
 
-# سيتم التثبيت الآن بسرعة البرق لأننا لغينا تحميل الكروم
+# تخطي تحميل متصفح كروم لأن الصورة تحتوي عليه بالفعل (لتوفير المساحة والوقت)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
+# تثبيت مكتبات Node.js
 RUN npm install
 
+# نسخ باقي ملفات المشروع
 COPY . .
 
-CMD ["node", "index.js"]
+# منح صلاحيات الكتابة للمستخدم pptruser (مهم جداً لملف data.json و qr.png)
+RUN chown -R pptruser:pptruser /usr/src/app
+
+# العودة للمستخدم العادي للأمان وتشغيل البوت
+USER pptruser
+
+# أمر التشغيل
+CMD [ "node", "index.js" ]

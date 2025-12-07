@@ -1,7 +1,6 @@
 FROM node:18-slim
 
-# 1. تثبيت متصفح Google Chrome المستقر ومكتبات النظام الضرورية
-# هذا يضمن أن البوت يعمل بمتصفح حقيقي وليس نسخة تجريبية
+# 1. تثبيت متصفح كروم عشان البوت يشتغل
 RUN apt-get update \
     && apt-get install -y wget gnupg \
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
@@ -11,18 +10,12 @@ RUN apt-get update \
       --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. إعداد متغيرات البيئة
-# هذا السطر يمنع Puppeteer من تحميل الكروم لانه موجود بالفعل في النظام (يوفر الوقت والذاكرة)
+# 2. إعدادات البيئة
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 WORKDIR /app
-
 COPY package*.json ./
-
-# سيتم التثبيت الآن بسرعة البرق لأننا لغينا تحميل الكروم
 RUN npm install
-
 COPY . .
-
 CMD ["node", "index.js"]

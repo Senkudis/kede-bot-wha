@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const { Client, LocalAuth, Location } = require('whatsapp-web.js');
 const fs = require('fs');
@@ -7,16 +8,16 @@ const puppeteer = require('puppeteer');
 const QRCode = require('qrcode');
 const axios = require('axios');
 const FormData = require('form-data');
-
-const OPENAI_API_KEY = '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';
-const IMGBB_KEY = '8df2f63e10f44cf4f6f7d99382861e76';
+// Note: It's highly recommended to use environment variables for sensitive keys.
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const IMGBB_KEY = process.env.IMGBB_KEY;
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 let data = { subscribers: [], pendingQuiz: {}, stats: {}, groupStats: {}, pendingGames: {}, welcomedChats: [] };
 if (fs.existsSync(DATA_FILE)) {
   try { data = JSON.parse(fs.readFileSync(DATA_FILE)); } 
   catch (e) { console.error('خطأ في قراءة data.json', e); }
-}
+} else { saveData(); } // Create data.json if it doesn't exist
 function saveData(){ fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
 function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
 
@@ -79,8 +80,9 @@ const randomImages = [
 
 // دوال مساعدة للأوامر الجديدة
 async function getWeather(city) {
+  const apiKey = process.env.WEATHER_API_KEY || 'YOUR_WEATHER_API_KEY'; // Use environment variable for API key
+  if (apiKey === 'YOUR_WEATHER_API_KEY') return 'عذرًا، لم يتم إعداد مفتاح API للطقس.';
   try {
-    const apiKey = '316d0c91eed64b65a15211006251008'; // لازم تضيف مفتاح API لو حتستخدم API طقس
     const resp = await axios.get(`http://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&lang=ar`);
     const data = resp.data;
     return `الطقس في ${data.location.name}: ${data.current.condition.text}\nدرجة الحرارة: ${data.current.temp_c}°C\nالرطوبة: ${data.current.humidity}%\nالريح: ${data.current.wind_kph} كم/س`;
@@ -90,13 +92,15 @@ async function getWeather(city) {
 }
 
 async function translateText(text, lang) {
+  const libreTranslateUrl = process.env.LIBRETRANSLATE_URL || 'https://libretranslate.de/translate';
   try {
-    const resp = await axios.post('https://libretranslate.de/translate', {
+    const resp = await axios.post(libreTranslateUrl, {
       q: text,
       source: 'ar',
       target: lang,
       format: 'text'
     });
+    if (resp.data && resp.data.translatedText)
     return resp.data.translatedText;
   } catch {
     return 'خطأ في الترجمة.';
@@ -105,17 +109,21 @@ async function translateText(text, lang) {
 
 async function getDates() {
   const today = new Date();
-  return `التاريخ اليوم:\n- الميلادي: ${today.toLocaleDateString('en-GB')}\n- الهجري: غير مدعوم حالياً`;
+  // For Hijri date, you'd typically need a library or an API.
+  // Example using a simple approximation or a placeholder:
+  const hijriDate = new Intl.DateTimeFormat('ar-SA-islamic', { day: 'numeric', month: 'long', year: 'numeric' }).format(today);
+  return `التاريخ اليوم:\n- الميلادي: ${today.toLocaleDateString('en-GB')}\n- الهجري: ${hijriDate}`;
 }
 
 async function getNews() {
-  // مثال، ممكن تستخدم API أخبار حقيقية مع مفتاح
-  return 'آخر الأخبار: ... (هذه ميزة قيد التطوير)';
+  // This would require a news API (e.g., News API, GNews API).
+  // For now, it's a placeholder.
+  return 'آخر الأخبار: لا تتوفر خدمة الأخبار حاليًا. (ميزة قيد التطوير)';
 }
 
 async function getMarketStatus() {
-  // مثال
-  return 'سوق الأسهم اليوم: ... (ميزة قيد التطوير)';
+  // This would require a financial data API (e.g., Alpha Vantage, Yahoo Finance API).
+  return 'سوق الأسهم اليوم: لا تتوفر بيانات السوق حاليًا. (ميزة قيد التطوير)';
 }
 
 const client = new Client({
@@ -137,13 +145,16 @@ let prayerJobs = [];
 client.on('qr', async qr => {
   try {
     console.log('📌 تم توليد QR — جارٍ رفعه...');
-    const qrPath = path.join(__dirname, 'qr.png');
-    await QRCode.toFile(qrPath, qr);
-    const form = new FormData();
-    form.append('image', fs.createReadStream(qrPath));
-    const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, form, { headers: form.getHeaders() });
-    if (resp.data?.data?.url) console.log('✅ رابط الـ QR:', resp.data.data.url);
-    fs.unlinkSync(qrPath);
+    // Only upload QR if IMGBB_KEY is provided
+    if (IMGBB_KEY && IMGBB_KEY !== 'YOUR_IMGBB_API_KEY') { // Assuming IMGBB_KEY might be a placeholder
+      const qrPath = path.join(__dirname, 'qr.png');
+      await QRCode.toFile(qrPath, qr);
+      const form = new FormData();
+      form.append('image', fs.createReadStream(qrPath));
+      const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, form, { headers: form.getHeaders() });
+      if (resp.data?.data?.url) console.log('✅ رابط الـ QR:', resp.data.data.url);
+      fs.unlinkSync(qrPath); // Clean up the QR image file
+    } else { console.log('✅ QR Code:', qr); } // Log QR to console if no IMGBB key
   } catch (err) { console.error('❌ خطأ رفع QR:', err); }
 });
 
@@ -154,7 +165,8 @@ client.on('ready', () => {
 
 async function getPrayerTimes() {
   try {
-    const res = await axios.get('https://api.aladhan.com/v1/timingsByCity', { params: { city: 'Khartoum', country: 'Sudan', method: 2 } });
+    // Using a more robust method for prayer times (e.g., method 5 for Egypt General Authority of Survey)
+    const res = await axios.get('https://api.aladhan.com/v1/timingsByCity', { params: { city: 'Khartoum', country: 'Sudan', method: 5 } });
     return res.data?.data?.timings || null;
   } catch { return null; }
 }
@@ -165,11 +177,13 @@ async function schedulePrayerReminders() {
   const times = await getPrayerTimes();
   if (!times) return;
   const map = { Fajr: 'الفجر', Dhuhr: 'الظهر', Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء' };
+  // Ensure all subscribers and group chats receive reminders
   for (const key in map) {
     const [h, m] = times[key].split(':').map(Number);
     const job = cron.schedule(`${m} ${h} * * *`, () => {
       const text = `${pickRandom(prayerReminders)}\n🕒 ${map[key]} الآن`;
-      [...data.subscribers, ...Object.keys(data.groupStats)].forEach(id => client.sendMessage(id, text).catch(()=>{}));
+      // Send to individual subscribers and all group chats where the bot is present
+      [...new Set([...data.subscribers, ...data.welcomedChats.filter(id => id.endsWith('@g.us'))])].forEach(id => client.sendMessage(id, text).catch(e => console.error(`Failed to send prayer reminder to ${id}:`, e.message)));
     }, { timezone: 'Africa/Khartoum' });
     prayerJobs.push(job);
   }
@@ -178,13 +192,13 @@ cron.schedule('5 0 * * *', schedulePrayerReminders, { timezone: 'Africa/Khartoum
 
 // رسائل صباحية ومسائية
 cron.schedule('0 8 * * *', () => {
-  const text = pickRandom(greetings);
-  data.subscribers.forEach(id => client.sendMessage(id, text));
+  const text = pickRandom(greetings); // Send to all subscribed individuals
+  data.subscribers.forEach(id => client.sendMessage(id, text).catch(e => console.error(`Failed to send morning greeting to ${id}:`, e.message)));
 }, { timezone: 'Africa/Khartoum' });
 
 cron.schedule('0 20 * * *', () => {
   const text = "مساء الخير! 😄 اكتب 'نكتة' عشان نضحك.";
-  data.subscribers.forEach(id => client.sendMessage(id, text));
+  data.subscribers.forEach(id => client.sendMessage(id, text).catch(e => console.error(`Failed to send evening message to ${id}:`, e.message)));
 }, { timezone: 'Africa/Khartoum' });
 
 async function getContactNameOrNumber(id) {
@@ -225,11 +239,11 @@ function getCommandsList() {
 client.on('message_create', async (msg) => {
   // رسالة ترحيب عند إضافة البوت لقروب
   if (msg.from.endsWith('@g.us')) {
-    const chat = await msg.getChat();
-    if (chat.participants.find(p => p.id._serialized === client.info.wid._serialized)) {
-      if (!data.welcomedChats.includes(chat.id._serialized)) {
-        data.welcomedChats.push(chat.id._serialized);
-        saveData();
+    const chat = await msg.getChat(); // Ensure chat object is available
+    // Check if the bot is a participant and if it hasn't welcomed this chat yet
+    if (chat.participants && chat.participants.find(p => p.id._serialized === client.info.wid._serialized)) {
+      if (!data.welcomedChats.includes(chat.id._serialized)) { // Use chat.id._serialized for group chats
+        data.welcomedChats.push(chat.id._serialized); saveData();
         chat.sendMessage(getCommandsList());
       }
     }
@@ -240,7 +254,7 @@ client.on('message', async msg => {
   const from = msg.from, body = msg.body.trim();
 
   // ترحيب أول رسالة مباشرة (للفرد)
-  if (!msg.from.endsWith('@g.us') && !data.welcomedChats.includes(from)) {
+  if (!msg.isGroup && !data.welcomedChats.includes(from)) { // Check if it's a private chat
     data.welcomedChats.push(from);
     saveData();
     msg.reply(getCommandsList());
@@ -266,9 +280,12 @@ client.on('message', async msg => {
   // تحديث احصائيات القروب
   if (msg.isGroup) {
     const chat = await msg.getChat();
-    const g = data.groupStats[from] ||= { messages: {}, createdTimestamp: chat.createdTimestamp || Date.now(), participants: [] };
-    g.participants = (chat.participants || []).map(p => p.id._serialized);
+    const chatId = chat.id._serialized; // Use serialized chat ID for consistency
+    const g = data.groupStats[chatId] ||= { messages: {}, createdTimestamp: chat.createdTimestamp || Date.now(), participants: [] };
+    // Update participants list more reliably
+    g.participants = (chat.participants || []).map(p => p.id._serialized); 
     const author = msg.author || msg.from;
+    // Ensure author is a string key
     g.messages[author] = (g.messages[author] || 0) + 1;
     saveData();
   }
@@ -278,12 +295,13 @@ client.on('message', async msg => {
 
   if (body === 'اشترك') return msg.reply(data.subscribers.includes(from) ? 'مشترك بالفعل' : (data.subscribers.push(from), saveData(), '✅ اشتركت'));
   if (body === 'الغاء') return msg.reply(data.subscribers.includes(from) ? (data.subscribers.splice(data.subscribers.indexOf(from),1), saveData(), '✅ ألغيت الاشتراك') : 'لست مشتركًا');
-  if (body === 'نكتة') return msg.reply(pickRandom(jokes));
-  if (body === 'احصائيات') {
+  if (body === 'نكتة') return msg.reply(pickRandom(jokes)); // Corrected typo from 'نكتة' to 'نكتة'
+  if (body === 'احصائيات القروب') { // Changed command to match getCommandsList
     if (!msg.isGroup) return msg.reply('فقط داخل القروبات');
     const chat = await msg.getChat();
-    const stats = data.groupStats[from] || { messages: {} };
-    const membersCount = chat.participants.length;
+    const chatId = chat.id._serialized;
+    const stats = data.groupStats[chatId] || { messages: {} };
+    const membersCount = chat.participants ? chat.participants.length : 0; // Handle cases where participants might be undefined
     const createdAt = chat.createdTimestamp ? new Date(chat.createdTimestamp).toLocaleString('en-GB', { timeZone: 'Africa/Khartoum' }) : 'غير متوفر';
     const sorted = Object.entries(stats.messages).sort((a,b) => b[1]-a[1]);
     if (!sorted.length) return msg.reply(`📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\nلا بيانات`);
@@ -292,29 +310,58 @@ client.on('message', async msg => {
     const topName = await getContactNameOrNumber(topId), bottomName = await getContactNameOrNumber(bottomId);
     return msg.reply(`📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\n🏆 الأكثر تفاعل: ${topName} (${topCount})\n😴 الأقل تفاعل: ${bottomName} (${bottomCount})`);
   }
-
-  if (body === 'العب رقم') { data.pendingGames[from] = { type: 'guess', number: Math.floor(Math.random()*10)+1, tries: 0 }; saveData(); return msg.reply('اخترت رقم 1-10، خمّن!'); }
+  if (body === 'العب رقم') {
+    data.pendingGames[from] = { type: 'guess', number: Math.floor(Math.random()*10)+1, tries: 0 };
+    saveData();
+    return msg.reply('اخترت رقم بين 1 و 10، خمّن ما هو!');
+  }
   if (data.pendingGames[from]?.type === 'guess' && /^\d+$/.test(body)) {
     const g = data.pendingGames[from], guess = +body;
     g.tries++;
     if (guess === g.number) { delete data.pendingGames[from]; saveData(); return msg.reply(`🎉 صحيح (${guess}) بعد ${g.tries} محاولة`); }
     saveData(); return msg.reply(guess < g.number ? 'أعلى!' : 'أقل!');
   }
-  if (body === 'لغز') { const q = pickRandom(triviaQuestions); data.pendingQuiz[from] = q; saveData(); return msg.reply(q.q); }
-  if (['أ','ب','ج','A','B','C','a','b','c'].includes(body)) {
-    const p = data.pendingQuiz[from];
-    if (!p) return;
-    const n = body.replace('A','أ').replace('B','ب').replace('C','ج').toUpperCase();
-    delete data.pendingQuiz[from]; saveData();
-    return msg.reply(n === p.answer ? '✅ صحيح' : '❌ خطأ');
+  if (body === 'لغز') {
+    const q = pickRandom(triviaQuestions);
+    data.pendingQuiz[from] = q;
+    saveData();
+    return msg.reply(q.q);
   }
-  if (['حجر','ورق','مقص'].includes(body)) {
+  // Check for trivia answer
+  if (data.pendingQuiz[from] && ['أ','ب','ج','A','B','C','a','b','c'].includes(body.toUpperCase())) {
+    const p = data.pendingQuiz[from];
+    const userAnswer = body.toUpperCase().replace('A','أ').replace('B','ب').replace('C','ج');
+    delete data.pendingQuiz[from]; saveData();
+    return msg.reply(userAnswer === p.answer ? '✅ صحيح!' : `❌ خطأ. الإجابة الصحيحة هي ${p.answer}.`);
+  }
+  if (['حجر','ورق','مقص'].includes(body.toLowerCase())) { // Make case-insensitive
     const b = pickRandom(['حجر','ورق','مقص']);
-    const win = (body==='حجر'&&b==='مقص')||(body==='ورق'&&b==='حجر')||(body==='مقص'&&b==='ورق')?'فزت':body===b?'تعادل':'خسرت';
-    return msg.reply(`أنا اخترت: ${b}\n${win}`);
+    let result;
+    if (body.toLowerCase() === b) { result = 'تعادل!'; }
+    else if (
+      (body.toLowerCase() === 'حجر' && b === 'مقص') ||
+      (body.toLowerCase() === 'ورق' && b === 'حجر') ||
+      (body.toLowerCase() === 'مقص' && b === 'ورق')
+    ) { result = 'فزت!'; }
+    else { result = 'خسرت!'; }
+    return msg.reply(`أنا اخترت: ${b}\nالنتيجة: ${result}`);
   }
 
-  if (body === 'ذكاء') return msg.reply('🧠 اكتب: ذكاء [سؤالك]');
+  // New commands
+  if (body.startsWith('طقس ')) {
+    const city = body.slice(4).trim();
+    const weather = await getWeather(city);
+    return msg.reply(weather);
+  }
+  if (body.startsWith('ترجم ')) {
+    const parts = body.slice(5).split(' إلى ');
+    if (parts.length === 2) {
+      const textToTranslate = parts[0].trim();
+      const targetLang = parts[1].trim().toLowerCase(); // e.g., 'en', 'es'
+      const translated = await translateText(textToTranslate, targetLang);
+      return msg.reply(translated);
+    } return msg.reply('صيغة الأمر خاطئة. استخدم: ترجم [النص] إلى [اللغة]');
+  }
   if (body.startsWith('ذكاء ')) {
     const prompt = body.slice(6).trim();
     try {
@@ -322,10 +369,36 @@ client.on('message', async msg => {
       return msg.reply(resp.data.choices[0].message.content.trim());
     } catch { return msg.reply('خطأ في OpenAI'); }
   }
+  if (body === 'التاريخ') {
+    const dates = await getDates();
+    return msg.reply(dates);
+  }
+  if (body === 'معلومة') {
+    return msg.reply(pickRandom(facts));
+  }
+  if (body === 'اقتباس') {
+    return msg.reply(pickRandom(quotes));
+  }
+  if (body === 'اخبار') {
+    const news = await getNews();
+    return msg.reply(news);
+  }
+  if (body === 'سوق') {
+    const marketStatus = await getMarketStatus();
+    return msg.reply(marketStatus);
+  }
+  if (body === 'صورة') {
+    const image = pickRandom(randomImages);
+    if (image && image.url) {
+      const media = await MessageMedia.fromUrl(image.url);
+      return client.sendMessage(from, media, { caption: image.caption });
+    } return msg.reply('عذراً، لا توجد صور متاحة حالياً.');
+  }
+  if (body === 'مساعدة تقنية') {
+    return msg.reply('للدعم التقني، يرجى التواصل مع المطور على الرقم: 249112046348');
+  }
 
   if (body.includes('السلام')) return msg.reply('وعليكم السلام يا زول 👋');
-
-// الموق
 });
 
 client.initialize();

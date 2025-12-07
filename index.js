@@ -1,12 +1,12 @@
 require('dotenv').config();
-const { Client, LocalAuth, Location, MessageMedia } = require('whatsapp-web.js');
-const fs = require('fs');
-const cron = require('node-cron');
-const path = require('path');
-const puppeteer = require('puppeteer');
-const QRCode = require('qrcode');
-const axios = require('axios');
-const FormData = require('form-data');
+const { Client, LocalAuth, Location, MessageMedia } = require("whatsapp-web.js");
+const fs = require("fs");
+const cron = require("node-cron");
+const path = require("path");
+const puppeteer = require("puppeteer");
+const QRCode = require("qrcode");
+const axios = require("axios");
+const FormData = require("form-data");
 
 // ===== تحميل وتهيئة البيانات =====
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -38,8 +38,8 @@ fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 console.log('✅ تم تحميل وتهيئة ملف البيانات');
 
 // مفاتيح API (تركتها كما هي)
-const OPENAI_API_KEY = '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';
-const IMGBB_KEY = 'b635f7e3c7bdecdfb39e47f3fc096e08';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const IMGBB_KEY = process.env.IMGBB_KEY;
 
 // دوال مساعدة
 function saveData() { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); }
@@ -117,7 +117,7 @@ async function translateText(text, lang) {
   try {
     const resp = await axios.post('https://libretranslate.de/translate', {
       q: text,
-      source: 'ar',
+      source: 'auto',
       target: lang,
       format: 'text'
     });
@@ -144,21 +144,28 @@ async function getMarketStatus() {
 
 // تهيئة عميل الواتساب
 const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        // هذا السطر مهم جداً: يجعل البوت يستخدم المسار الذي يحدده Docker تلقائياً
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH, 
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu'
-        ]
-    }
+  authStrategy: new LocalAuth({
+    clientId: "KedeBot" // You can specify a client id if you want to run multiple sessions
+  }),
+  // Other client options
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2413.51-beta.html',
+  },
+  puppeteer: {
+    headless: "new",
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--window-size=1920,1080'
+    ],
+    defaultViewport: null
+  }
 });
 
 let prayerJobs = [];
@@ -272,7 +279,7 @@ client.on('message', async msg => {
   if (
     !msg.from.endsWith('@g.us') &&
     Array.isArray(data.welcomedChats) &&
-    !data.welcomedChatsPrivate.includes(from)
+    !data.welcomedChatsPrivate.includes(from) && msg.type === 'chat'
   ) {
     data.welcomedChatsPrivate.push(from);
     saveData();
@@ -297,7 +304,7 @@ client.on('message', async msg => {
   }
 
   // تحديث احصائيات القروب
-  if (msg.isGroup) {
+  if (msg.isGroup && msg.type === 'chat') { // Only count chat messages for group stats
     const chat = await msg.getChat();
     const g = data.groupStats[from] ||= { messages: {}, createdTimestamp: chat.createdTimestamp || Date.now(), participants: [] };
     g.participants = (chat.participants || []).map(p => p.id._serialized);
@@ -318,7 +325,7 @@ client.on('message', async msg => {
   if (body === 'نكتة') return msg.reply(pickRandom(jokes));
 
   if (body === 'احصائيات') {
-    if (!msg.isGroup) return msg.reply('فقط داخل القروبات');
+    if (!msg.isGroup) return msg.reply('هذا الأمر متاح فقط داخل المجموعات.');
     const chat = await msg.getChat();
     const stats = data.groupStats[from] || { messages: {} };
     const membersCount = chat.participants.length;
@@ -386,7 +393,7 @@ client.on('message', async msg => {
       const resp = await axios.post(`https://api.openai.com/v1/chat/completions`, {
   model: "gpt-3.5-turbo",
   messages: [{ role: "user", content: prompt }]
-}, { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } });
+}, { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }); // Corrected line
       return msg.reply(resp.data.choices[0].message.content);
     } catch (err) {
       console.error(err);
@@ -401,7 +408,7 @@ client.on('message', async msg => {
 
   if (body.startsWith('ترجم ')) {
     const parts = body.match(/^ترجم (.+) إلى (\w{2})$/);
-    if (!parts) return msg.reply('صيغة الأمر: ترجم [النص] إلى [رمز اللغة]');
+    if (!parts) return msg.reply('صيغة الأمر: ترجم [النص] إلى [رمز اللغة] (مثال: ترجم مرحبا إلى en)');
     return msg.reply(await translateText(parts[1], parts[2]));
   }
 
@@ -446,16 +453,16 @@ client.on('message', async msg => {
   }
 });
 // ترحيب بعضو جديد
-client.on('message', async msg => {
-    if (msg.type === 'notification' && msg.subtype === 'add') {
-        const chat = await msg.getChat();
-        const added = msg.recipientIds;
-        for (let user of added) {
-            await chat.sendMessage(
-                `🎉 أهلاً وسهلاً بـ @${user.split('@')[0]} في قروب *${chat.name}*! 🌟`,
-                { mentions: [await chat.getContact(user)] }
-            );
-        }
+client.on('group_join', async (notification) => {
+  const chat = await notification.getChat();
+  const newParticipantId = notification.id.participant;
+
+  if (chat.isGroup) {
+    const contact = await client.getContactById(newParticipantId);
+    await chat.sendMessage(
+      `🎉 أهلاً وسهلاً بـ @${contact.id.user} في قروب *${chat.name}*! 🌟`,
+      { mentions: [contact] }
+    );
     }
 });
 

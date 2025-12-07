@@ -157,18 +157,12 @@ async function getContactNameOrNumber(id) {
 // ==================== WHATSAPP CLIENT (FIXED) ====================
 const client = new Client({
     authStrategy: new LocalAuth({
-        // تغيير الاسم لإجبار السيرفر على إنشاء جلسة جديدة نظيفة
-        clientId: "kidi-railway-fix",
+        clientId: "kidi-v4-full", // اسم جديد لجلسة نظيفة
         dataPath: "./.wwebjs_auth"
     }),
-    // ✅ الحل السحري لمشكلة التعليق
-    webVersionCache: {
-        type: "remote",
-        remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
-    },
+    // عند استخدام نسخة GitHub لا نحتاج webVersionCache عادة، النسخة المحدثة تعمل تلقائياً
     puppeteer: {
         headless: true,
-        // استخدام مسار كروم من النظام إذا وجد
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
         args: [
             '--no-sandbox',
@@ -184,13 +178,13 @@ const client = new Client({
 
 let prayerJobs = [];
 
-// ==================== DEBUG LOGS (مهم جداً) ====================
+// ==================== LOGS & EVENTS ====================
 client.on('loading_screen', (percent, message) => {
     console.log('⏳ جاري التحميل:', percent, '%', message);
 });
 
 client.on('authenticated', () => {
-    console.log('🔑 تم التوثيق بنجاح (Authenticated)!');
+    console.log('🔑 تم التوثيق (Authenticated)');
 });
 
 client.on('auth_failure', msg => {
@@ -198,11 +192,11 @@ client.on('auth_failure', msg => {
 });
 
 client.on('ready', () => {
-    console.log('✅ البوت جاهز تماماً للاستخدام (Ready)!');
+    console.log('✅ البوت جاهز تماماً (READY)!');
     schedulePrayerReminders();
 });
 
-// ==================== QR Code ====================
+// QR Code Generation & Upload
 client.on('qr', async qr => {
     try {
         console.log('📌 QR Generated — Uploading...');
@@ -227,7 +221,7 @@ client.on('qr', async qr => {
         if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
     } catch (err) {
         console.error('❌ QR Upload Error:', err.response?.data || err.message);
-        console.log('📌 QR Code (Console):', qr);
+        console.log('📌 QR Code:', qr);
     }
 });
 

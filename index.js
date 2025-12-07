@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js'); // ✅ تم التعديل: إضافة MessageMedia
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const fs = require('fs');
 const cron = require('node-cron');
 const path = require('path');
@@ -9,14 +9,13 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 // ==================== CONFIGURATION ====================
-// NEVER hardcode API keys! Use .env file
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const IMGBB_KEY = process.env.IMGBB_KEY;
-const WEATHER_API_KEY = process.env.WEATHER_API_KEY || '316d0c91eed64b65a15211006251008'; // Fallback for demo
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY || '316d0c91eed64b65a15211006251008';
 
 if (!OPENAI_API_KEY || !IMGBB_KEY) {
     console.error('❌ ERROR: Missing API keys in .env file');
-    process.exit(1);
+    // process.exit(1); // يمكنك تفعيل هذا السطر إذا أردت إيقاف البوت عند نقص المفاتيح
 }
 
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -27,14 +26,13 @@ let data = {
     pendingQuiz: {}, 
     pendingGames: {}, 
     groupStats: {}, 
-    welcomedChats: new Set() // Use Set for better performance
+    welcomedChats: new Set()
 };
 
 // Load data
 if (fs.existsSync(DATA_FILE)) {
     try { 
         const loaded = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-        // Convert welcomedChats array to Set if needed
         loaded.welcomedChats = Array.isArray(loaded.welcomedChats) ? new Set(loaded.welcomedChats) : new Set();
         data = loaded;
     } catch (e) { 
@@ -44,7 +42,6 @@ if (fs.existsSync(DATA_FILE)) {
 
 function saveData() {
     try {
-        // Convert Set to array for JSON serialization
         const dataToSave = {
             ...data,
             welcomedChats: Array.from(data.welcomedChats)
@@ -111,13 +108,12 @@ const quotes = [
 // ==================== SERVICE FUNCTIONS ====================
 async function getWeather(city) {
     try {
-        // ✅ تم التعديل: استخدام https
         const resp = await axios.get(
-            https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar,
+            `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&lang=ar`,
             { timeout: 5000 }
         );
         const d = resp.data;
-        return الطقس في ${d.location.name}:\n🌡 ${d.current.condition.text}\n🌡 درجة الحرارة: ${d.current.temp_c}°C\n💧 الرطوبة: ${d.current.humidity}%\n💨 الرياح: ${d.current.wind_kph} كم/س;
+        return `الطقس في ${d.location.name}:\n🌡 ${d.current.condition.text}\n🌡 درجة الحرارة: ${d.current.temp_c}°C\n💧 الرطوبة: ${d.current.humidity}%\n💨 الرياح: ${d.current.wind_kph} كم/س`;
     } catch (err) {
         console.error('Weather API error:', err.response?.data || err.message);
         return 'عذرًا، لم أتمكن من جلب بيانات الطقس. تأكد من اسم المدينة.';
@@ -128,7 +124,7 @@ async function translateText(text, targetLang) {
     try {
         const resp = await axios.post('https://libretranslate.de/translate', {
             q: text,
-            source: 'auto', // Auto-detect instead of hardcoding 'ar'
+            source: 'auto',
             target: targetLang,
             format: 'text'
         }, { timeout: 5000 });
@@ -141,9 +137,8 @@ async function translateText(text, targetLang) {
 
 async function getRandomImage() {
     try {
-        // Use a real random image API
         const resp = await axios.get('https://picsum.photos/400/400', { timeout: 5000 });
-        return resp.request.res.responseUrl; // Get the redirect URL
+        return resp.request.res.responseUrl;
     } catch (err) {
         console.error('Image API error:', err.message);
         return null;
@@ -164,6 +159,7 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -171,10 +167,8 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            // Removed deprecated '--single-process'
             '--disable-gpu'
-        ],
-        executablePath: puppeteer.executablePath()
+        ]
     }
 });
 
@@ -191,7 +185,7 @@ client.on('qr', async qr => {
         form.append('image', fs.createReadStream(qrPath));
         
         const resp = await axios.post(
-            https://api.imgbb.com/1/upload?key=${IMGBB_KEY},
+            `https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`,
             form,
             { headers: form.getHeaders() }
         );
@@ -202,11 +196,9 @@ client.on('qr', async qr => {
             console.warn('⚠ QR uploaded but no URL returned');
         }
         
-        // Only delete after successful upload
         if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
     } catch (err) {
         console.error('❌ QR Upload Error:', err.response?.data || err.message);
-        // Fallback: Show in console
         console.log('📌 QR Code:', qr);
     }
 });
@@ -224,7 +216,7 @@ async function getPrayerTimes() {
                 city: 'Khartoum',
                 country: 'Sudan',
                 method: 2,
-                school: 0 // Added for better accuracy
+                school: 0
             },
             timeout: 5000
         });
@@ -236,7 +228,6 @@ async function getPrayerTimes() {
 }
 
 async function schedulePrayerReminders() {
-    // Stop existing jobs
     prayerJobs.forEach(j => j.stop());
     prayerJobs = [];
     
@@ -257,44 +248,39 @@ async function schedulePrayerReminders() {
     for (const [key, arabicName] of Object.entries(map)) {
         const [h, m] = times[key].split(':').map(Number);
         
-        // Validate time
         if (h >= 0 && h < 24 && m >= 0 && m < 60) {
             const job = cron.schedule(
-                ${m} ${h} * * *,
-                () => sendBroadcast(${pickRandom(prayerReminders)}\n🕒 ${arabicName} الآن),
+                `${m} ${h} * * *`,
+                () => sendBroadcast(`${pickRandom(prayerReminders)}\n🕒 ${arabicName} الآن`),
                 { timezone: 'Africa/Khartoum' }
             );
             prayerJobs.push(job);
-            console.log(⏰ Scheduled ${arabicName} at ${h}:${m});
+            console.log(`⏰ Scheduled ${arabicName} at ${h}:${m}`);
         }
     }
 }
 
-// Daily prayer times refresh
 cron.schedule('5 0 * * *', () => {
     console.log('📅 Refreshing prayer times...');
     schedulePrayerReminders();
 }, { timezone: 'Africa/Khartoum' });
 
 // ==================== SCHEDULED MESSAGES ====================
-// Morning greetings
 cron.schedule('0 8 * * *', () => {
     sendBroadcast(pickRandom(greetings));
 }, { timezone: 'Africa/Khartoum' });
 
-// Evening message
 cron.schedule('0 20 * * *', () => {
     sendBroadcast('مساء الخير! 😄 اكتب "نكتة" عشان نضحك.');
 }, { timezone: 'Africa/Khartoum' });
 
-// Helper to broadcast to all subscribers
 async function sendBroadcast(message) {
     const allIds = new Set([...data.subscribers, ...Object.keys(data.groupStats)]);
     for (const id of allIds) {
         try {
             await client.sendMessage(id, message);
         } catch (err) {
-            console.error(❌ Failed to send to ${id}:, err.message);
+            console.error(`❌ Failed to send to ${id}:`, err.message);
         }
     }
 }
@@ -331,13 +317,10 @@ function getCommandsList() {
 
 // ==================== MESSAGE EVENTS ====================
 client.on('message_create', async (msg) => {
-    // Group welcome when bot is added
     if (msg.from.endsWith('@g.us')) {
         try {
             const chat = await msg.getChat();
             const botId = client.info.wid._serialized;
-            
-            // Check if bot is a participant
             const isInGroup = chat.participants.some(p => p.id._serialized === botId);
             
             if (isInGroup && !data.welcomedChats.has(chat.id._serialized)) {
@@ -355,18 +338,15 @@ client.on('message', async msg => {
     const from = msg.from;
     const body = msg.body.trim();
     
-    // Ignore own messages
     if (msg.fromMe) return;
     
-    // Welcome first-time private chats
     if (!from.endsWith('@g.us') && !data.welcomedChats.has(from)) {
         data.welcomedChats.add(from);
         saveData();
         await msg.reply(getCommandsList());
-        return; // Don't process further on first message
+        return;
     }
 
-    // Spontaneous replies (single random response)
     if (body === 'كيدي-بوت-روبوت') {
         const replies = [
             "أها، كيف أقدر أساعدك يا زول؟",
@@ -383,7 +363,6 @@ client.on('message', async msg => {
         return msg.reply(pickRandom(replies));
     }
 
-    // Group stats update
     if (msg.isGroup) {
         try {
             const chat = await msg.getChat();
@@ -404,12 +383,10 @@ client.on('message', async msg => {
         }
     }
 
-    // Command: Show commands
     if (body === 'اوامر') {
         return msg.reply(getCommandsList());
     }
 
-    // Command: Subscribe/Unsubscribe
     if (body === 'اشترك') {
         if (data.subscribers.includes(from)) {
             return msg.reply('✅ أنت مشترك بالفعل');
@@ -429,12 +406,10 @@ client.on('message', async msg => {
         return msg.reply('ℹ أنت غير مشترك أصلاً');
     }
 
-    // Command: Joke
     if (body === 'نكتة') {
         return msg.reply(pickRandom(jokes));
     }
 
-    // Command: Group Stats (FIXED NAME)
     if (body === 'احصائيات القروب') {
         if (!msg.isGroup) {
             return msg.reply('⚠ هذا الأمر يعمل فقط في القروبات');
@@ -451,7 +426,7 @@ client.on('message', async msg => {
             const messageCounts = Object.entries(stats.messages).sort((a, b) => b[1] - a[1]);
             
             if (!messageCounts.length) {
-                return msg.reply(📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\nلا توجد بيانات بعد);
+                return msg.reply(`📊 تاريخ الإنشاء: ${createdAt}\n👥 الأعضاء: ${membersCount}\nلا توجد بيانات بعد`);
             }
 
             const [topId, topCount] = messageCounts[0];
@@ -461,11 +436,11 @@ client.on('message', async msg => {
             const bottomName = await getContactNameOrNumber(bottomId);
             
             return msg.reply(
-                📊 *إحصائيات القروب*\n +
-                تاريخ الإنشاء: ${createdAt}\n +
-                👥 عدد الأعضاء: ${membersCount}\n\n +
-                🏆 الأكثر تفاعل: ${topName} (${topCount} رسالة)\n +
-                😴 الأقل تفاعل: ${bottomName} (${bottomCount} رسالة)
+                `📊 *إحصائيات القروب*\n` +
+                `تاريخ الإنشاء: ${createdAt}\n` +
+                `👥 عدد الأعضاء: ${membersCount}\n\n` +
+                `🏆 الأكثر تفاعل: ${topName} (${topCount} رسالة)\n` +
+                `😴 الأقل تفاعل: ${bottomName} (${bottomCount} رسالة)`
             );
         } catch (err) {
             console.error('Group stats error:', err.message);
@@ -473,7 +448,6 @@ client.on('message', async msg => {
         }
     }
 
-    // Command: Number Guessing Game
     if (body === 'العب رقم') {
         data.pendingGames[from] = {
             type: 'guess',
@@ -492,14 +466,13 @@ client.on('message', async msg => {
         if (guess === game.number) {
             delete data.pendingGames[from];
             saveData();
-            return msg.reply(🎉 إحسنت! الرقم ${guess} صحيح بعد ${game.tries} محاولة);
+            return msg.reply(`🎉 إحسنت! الرقم ${guess} صحيح بعد ${game.tries} محاولة`);
         }
         
         saveData();
         return msg.reply(guess < game.number ? '⬆ أعلى!' : '⬇ أقل!');
     }
 
-    // Command: Quiz/Trivia
     if (body === 'لغز') {
         const q = pickRandom(triviaQuestions);
         data.pendingQuiz[from] = q;
@@ -518,7 +491,6 @@ client.on('message', async msg => {
         return msg.reply(answer === quiz.answer ? '✅ صحيح!' : '❌ خطأ! الإجابة الصحيحة: ' + quiz.answer);
     }
 
-    // Command: Rock-Paper-Scissors
     if (['حجر', 'ورق', 'مقص'].includes(body)) {
         const botChoice = pickRandom(['حجر', 'ورق', 'مقص']);
         let result;
@@ -535,10 +507,9 @@ client.on('message', async msg => {
             result = '😔 خسرت!';
         }
         
-        return msg.reply(أنا اخترت: ${botChoice}\n${result});
+        return msg.reply(`أنا اخترت: ${botChoice}\n${result}`);
     }
 
-    // Command: AI Chat
     if (body.startsWith('ذكاء ')) {
         const prompt = body.slice(6).trim();
         if (!prompt) return msg.reply('🤖 استخدم: ذكاء [سؤالك]');
@@ -553,7 +524,7 @@ client.on('message', async msg => {
                 },
                 {
                     headers: {
-                        'Authorization': Bearer ${OPENAI_API_KEY},
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 15000
@@ -567,7 +538,6 @@ client.on('message', async msg => {
         }
     }
 
-    // Command: Weather (NOW WORKING)
     if (body.startsWith('طقس ')) {
         const city = body.slice(4).trim();
         if (!city) return msg.reply('🌤 استخدم: طقس [اسم المدينة]');
@@ -576,85 +546,62 @@ client.on('message', async msg => {
         return msg.reply(weather);
     }
 
-    // Command: Translate (NOW WORKING)
     if (body.includes(' إلى ') && body.startsWith('ترجم ')) {
         const match = body.match(/^ترجم (.+) إلى (\w+)$/);
         if (!match) return msg.reply('🌐 استخدم: ترجم [النص] إلى [en/fr/es/...]');
         
         const [, text, lang] = match;
         const translated = await translateText(text, lang);
-        return msg.reply(🌐 الترجمة (${lang}):\n${translated});
+        return msg.reply(`🌐 الترجمة (${lang}):\n${translated}`);
     }
 
-    // Command: Date
     if (body === 'التاريخ') {
         const today = new Date();
-        const hijri = 'غير مدعوم حالياً'; // You can add a hijri library later
+        const hijri = 'غير مدعوم حالياً';
         return msg.reply(
-            📅 التاريخ اليوم:\n +
-            - الميلادي: ${today.toLocaleDateString('ar-EG')}\n +
-            - الهجري: ${hijri}
+            `📅 التاريخ اليوم:\n` +
+            `- الميلادي: ${today.toLocaleDateString('ar-EG')}\n` +
+            `- الهجري: ${hijri}`
         );
     }
 
-    // Command: Random Fact
     if (body === 'معلومة') {
         return msg.reply('💡 ' + pickRandom(facts));
     }
 
-    // Command: Random Quote
     if (body === 'اقتباس') {
         return msg.reply('💭 ' + pickRandom(quotes));
     }
 
-    // Command: Random Image (NOW WORKING)
     if (body === 'صورة') {
         const imageUrl = await getRandomImage();
         if (imageUrl) {
-            // ✅ تم التعديل: أصبح MessageMedia معرفاً الآن وسيعمل هذا الكود
             const media = await MessageMedia.fromUrl(imageUrl);
             return msg.reply(media, null, { caption: '🖼 صورة عشوائية' });
         }
         return msg.reply('❌ لم أتمكن من جلب صورة');
     }
 
-    // Command: News (Placeholder)
     if (body === 'اخبار') {
         return msg.reply('📰 ميزة الأخبار قيد التطوير. حاول لاحقًا.');
     }
 
-    // Command: Market (Placeholder)
     if (body === 'سوق') {
         return msg.reply('📈 ميزة سوق الأسهم قيد التطوير. حاول لاحقًا.');
     }
 
-    // Command: Technical Support
     if (body === 'مساعدة تقنية') {
         return msg.reply('🔧 رابط الدعم: https://chat.whatsapp.com/GZmrZ8EETk84SreBpM6tPp?mode=ac_t');
     }
 
-    // Auto-reply to greeting
     if (body.includes('السلام')) {
         return msg.reply('وعليكم السلام ورحمة الله وبركاته يا زول 👋');
-    }
-
-    // Default response for unknown commands
-    if (body.startsWith('ذكاء') || body.startsWith('طقس') || body.startsWith('ترجم')) {
-        // Already handled above, this is a fallback
-        return;
-    }
-    
-    // If no command matched and it's a direct mention
-    if (data.pendingGames[from] || data.pendingQuiz[from]) {
-        // Game/quiz state is handled above
-        return;
     }
 });
 
 // ==================== INITIALIZE ====================
 client.initialize();
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down gracefully...');
     prayerJobs.forEach(j => j.stop());

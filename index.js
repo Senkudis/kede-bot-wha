@@ -86,7 +86,7 @@ const randomImages = [
 async function getWeather(city) {
   try {
     const apiKey = '316d0c91eed64b65a15211006251008'; // لازم تضيف مفتاح API لو حتستخدم API طقس
-    const resp = await axios.get(http://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&lang=ar);
+    const resp = await axios.get('http://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${encodeURIComponent(city)}&lang=ar');
     const data = resp.data;
     return الطقس في ${data.location.name}: ${data.current.condition.text}\nدرجة الحرارة: ${data.current.temp_c}°C\nالرطوبة: ${data.current.humidity}%\nالريح: ${data.current.wind_kph} كم/س;
   } catch {
@@ -98,7 +98,7 @@ async function translateText(text, lang) {
   try {
     const resp = await axios.post('https://libretranslate.de/translate', {
       q: text,
-      source: 'ar',
+      source: 'auto',
       target: lang,
       format: 'text'
     });

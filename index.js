@@ -144,21 +144,21 @@ async function getMarketStatus() {
 
 // تهيئة عميل الواتساب
 const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--window-size=1920,1080'
-    ],
-    defaultViewport: null
-  }
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        // هذا السطر مهم جداً: يجعل البوت يستخدم المسار الذي يحدده Docker تلقائياً
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH, 
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ]
+    }
 });
 
 let prayerJobs = [];

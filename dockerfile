@@ -1,27 +1,23 @@
-# نستخدم نسخة Node.js خفيفة (Slim) لتسريع الرفع وتجنب تعليق السيرفر
-FROM node:18-slim
+# استخدام نسخة Node.js الرسمية والمستقرة (LTS)
+# اخترنا نسخة slim لأنها خفيفة وسريعة
+FROM node:20-slim
 
-# 1. تثبيت متصفح Chromium والمكتبات الضرورية لتشغيله يدوياً
-# هذا يضمن أن المتصفح موجود 100% في المسار المعروف
-RUN apt-get update && apt-get install -y \
-    chromium \
-    fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+# (اختياري) تثبيت مكتبات النظام الضرورية
+# إذا كان البوت يستخدم صور أو صوتيات (ffmpeg)، قم بإزالة علامة # من السطر التالي
+# RUN apt-get update && apt-get install -y ffmpeg python3 make g++
 
-# 2. إعداد مجلد العمل
+# تحديد مسار العمل داخل الحاوية
 WORKDIR /usr/src/app
 
-# 3. إعداد متغيرات البيئة ليعرف البوت مكان المتصفح الذي ثبتناه
-# هذا السطر هو الذي سيحل مشكلة "Did not find executable"
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-
-# 4. نسخ ملفات المشروع وتثبيت المكتبات
+# نسخ ملفات تعريف المشروع أولاً (للاستفادة من الكاش وتسريع البناء)
 COPY package*.json ./
-RUN npm install
 
+# تثبيت الحزم والمكاتب
+RUN npm install --production
+
+# نسخ باقي ملفات البوت
 COPY . .
 
-# 5. أمر التشغيل
-CMD [ "node", "index.js" ]
+# أمر تشغيل البوت
+# تأكد أن الأمر يطابق السكربت الموجود في package.json
+CMD ["npm", "start"]

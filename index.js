@@ -5,6 +5,7 @@ const cron = require("node-cron");
 const path = require("path");
 const QRCode = require("qrcode");
 const axios = require("axios");
+const FormData = require("form-data");
 
 // ===== 1. تحميل وتهيئة البيانات =====
 const DATA_FILE = path.join(__dirname, 'data.json');

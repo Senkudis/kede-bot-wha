@@ -144,29 +144,21 @@ async function getMarketStatus() {
 
 // تهيئة عميل الواتساب
 const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "KedeBot" // You can specify a client id if you want to run multiple sessions
-  }),
-  // Other client options
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2413.51-beta.html',
-  },
   puppeteer: {
-    headless: "new",
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu',
-      '--window-size=1920,1080'
+      '--single-process'
     ],
-    defaultViewport: null
+    protocolTimeout: 60000 // مهم
   }
 });
+
 
 let prayerJobs = [];
 

@@ -84,7 +84,7 @@ async function googleTranslate(text, targetLang = 'en') {
     } catch { return text; }
 }
 
-aasync function getPollinationsText(userText) {
+async function getPollinationsText(userText) {
     try {
         // ندمج الشخصية
         const fullPrompt = `${BOT_PERSONA}\n\nالمستخدم: ${userText}\nكيدي:`;

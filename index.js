@@ -123,10 +123,18 @@ async function getDates() {
 // ===== 4. إعداد عميل الواتساب =====
 const client = new Client({
     authStrategy: new LocalAuth(), // يحفظ الجلسة تلقائياً
-    puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--no-zygote', '--single-process'],
-        protocolTimeout: 60000
+  puppeteer: {
+    headless: true,
+    args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu', 
+        '--single-process', 
+        '--no-zygote'
+    ],
+    executablePath: '/usr/bin/google-chrome-stable' // أحياناً Railway يحتاج هذا المسار إذا كنت تستخدم Dockerfile
+}
     }
 });
 

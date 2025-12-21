@@ -243,6 +243,7 @@ function getCommandsList() {
 - العب رقم: لعبة تخمين رقم من 1-10
 - لغز: سؤال تريفيا
 - حجر، ورق، مقص: لعبة حجر ورق مقص
+- ذكاء:دردش مع نظام الai الخاص بي كيدي
 - ذكاء [سؤالك]: تفاعل مع ذكاء اصطناعي
 - طقس [اسم المدينة]: لمعرفة حالة الطقس
 - ترجم [النص] إلى [اللغة]: لترجمة النص
@@ -387,18 +388,48 @@ client.on('message', async msg => {
     return msg.reply(`أنا اخترت ${botChoice} — ${result}`);
   }
 
+  // --- أمر الذكاء الاصطناعي النصي (بديل OpenAI) ---
   if (body.startsWith('ذكاء')) {
-    const prompt = body.slice(6).trim();
+    const prompt = body.slice(4).trim(); // تعديل الرقم ليتناسب مع طول الكلمة
+    if (!prompt) return msg.reply('اكتب سؤالك بعد كلمة ذكاء، مثلاً: ذكاء من هو مخترع الكهرباء؟');
+    
+    // إرسال رد مبدئي ليعرف المستخدم أن البوت يفكر (اختياري)
+    // msg.reply('جارٍ التفكير... 🧠'); 
+
+    const response = await getPollinationsText(prompt);
+    return msg.reply(response);
+  }
+
+  // --- أمر تخيل (توليد الصور) ---
+  if (body.startsWith('تخيل')) {
+    const prompt = body.slice(4).trim();
+    if (!prompt) return msg.reply('اكتب وصف الصورة بعد كلمة تخيل، مثلاً: تخيل قطة في الفضاء');
+
     try {
-      const resp = await axios.post(`https://api.openai.com/v1/chat/completions`, {
-  model: "gpt-3.5-turbo",
-  messages: [{ role: "user", content: prompt }]
-}, { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }); // Corrected line
-      return msg.reply(resp.data.choices[0].message.content);
+        // إنشاء الصورة
+        const base64Image = await getPollinationsImage(prompt);
+        
+        if (base64Image) {
+            const media = new MessageMedia('image/jpeg', base64Image);
+            return client.sendMessage(from, media, { caption: `🖼️ *تخيل:* ${prompt}\n🤖 *موديل:* Flux` });
+        } else {
+            return msg.reply('عذراً، حدث خطأ أثناء إنشاء الصورة.');
+        }
     } catch (err) {
-      console.error(err);
-      return msg.reply('حصل خطأ في التواصل مع الذكاء الاصطناعي.');
+        return msg.reply('حدث خطأ غير متوقع.');
     }
+  }
+
+  // --- أمر صورة (صور عشوائية فقط) ---
+  // يمكنك الإبقاء عليه كما هو أو حذفه، لكن "تخيل" هو الأقوى الآن
+  if (body === 'صورة') {
+     // نفس كودك القديم إذا أردت إبقاءه للصور العشوائية
+     try {
+       const resp = await axios.get('https://picsum.photos/200/300', { responseType: 'arraybuffer' });
+       return client.sendMessage(from, new MessageMedia('image/jpeg', Buffer.from(resp.data).toString('base64')));
+     } catch {
+       return msg.reply('حصل خطأ أثناء جلب الصورة.');
+     }
   }
 
   if (body.startsWith('طقس ')) {

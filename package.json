@@ -14,8 +14,7 @@
     "node-cron": "^3.0.3",
     "puppeteer": "^23.0.0",
     "qrcode": "^1.5.3",
-    "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js#webpack-exodus"
-  },
+    "whatsapp-web.js": "^1.26.0"  },
   "engines": {
     "node": ">=18.0.0"
   }

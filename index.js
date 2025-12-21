@@ -412,5 +412,18 @@ process.on('SIGINT', () => {
     client.destroy();
     process.exit();
 });
+// هذا الكود يخبرك عند نجاح المصادقة
+client.on('authenticated', () => {
+    console.log('🔑 تم المصادقة بنجاح! (Authenticated)');
+});
+
+// هذا الكود يخبرك عند بدء تحميل المحادثات
+client.on('auth_failure', msg => {
+    console.error('❌ فشل المصادقة:', msg);
+});
+
+client.on('loading_screen', (percent, message) => {
+    console.log(`⏳ جاري التحميل: ${percent}% - ${message}`);
+});
 
 client.initialize();

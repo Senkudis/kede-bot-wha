@@ -30,6 +30,9 @@ if (!Array.isArray(data.welcomedChatsGroups)) data.welcomedChatsGroups = [];
 
 saveData();
 
+// ===== 2. الإعدادات والمتغيرات =====
+const IMGBB_KEY = process.env.IMGBB_KEY; // تأكد من وجود هذا في ملف .env
+
 // ===== 2. البيانات الثابتة (النكت، الأسئلة، التذكيرات) =====
 const jokes = [
   "قال ليك في مسطول بكتب مع الأستاذ وكل ما الأستاذ يمسح السبوره يشرط الورقة",
@@ -178,27 +181,25 @@ cron.schedule('0 20 * * *', () => {
 
 // معالجة QR Code
 // ===== استبدل دالة الـ QR بهذا الكود =====
-client.on('qr', async qr => {
-    console.log('📌 QR Code Generated');
-    const qrPath = path.join(__dirname, 'qr.png');
-    await QRCode.toFile(qrPath, qr);
 
+// معالجة QR Code
+client.on('qr', async qr => {
     try {
-        // مفتاح احتياطي مباشر لتجنب خطأ التعريف
-        const apiKey = "89531818274a1795c479e4065609b68a"; 
+        console.log('📌 تم توليد QR — جارٍ رفعه...');
+        const qrPath = path.join(__dirname, 'qr.png');
+        await QRCode.toFile(qrPath, qr);
+        console.log('Scan the QR code found in root folder: qr.png');
         
-        const form = new FormData();
-        form.append('image', fs.createReadStream(qrPath));
-        
-        const res = await axios.post(`https://api.imgbb.com/1/upload?key=${apiKey}`, form, { headers: form.getHeaders() });
-        
-        if (res.data && res.data.data && res.data.data.url) {
-            console.log('✅ رابط الـ QR:', res.data.data.url);
-            console.log('👉 انسخ الرابط وافتحه في المتصفح لعمل مسح');
+        // رفع الصورة إذا توفر المفتاح
+        if (IMGBB_KEY) {
+            const form = new FormData();
+            form.append('image', fs.createReadStream(qrPath));
+            const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, form, { headers: form.getHeaders() });
+            if (resp.data?.data?.url) console.log('✅ رابط الـ QR:', resp.data.data.url);
         }
-    } catch (e) {
-        console.log('⚠️ فشل رفع الصورة (يمكنك فتح الملف qr.png يدوياً إذا كنت تشغل البوت محلياً).');
-    }
+        // حذف الملف لاحقاً (اختياري، تركته لكي تراه)
+        // fs.unlinkSync(qrPath); 
+    } catch (err) { console.error('❌ خطأ رفع QR:', err); }
 });
 
 

@@ -141,13 +141,7 @@ async function getMarketStatus() {
   // مثال
   return 'سوق الأسهم اليوم: ... (ميزة قيد التطوير)';
 }
-client.on('message', async (message) => {
-  console.log('📩 رسالة واردة:', message.body);
 
-  if (message.body === 'ping') {
-    await message.reply('pong ✅');
-  }
-});
 
 // تهيئة عميل الواتساب
 const client = new Client({
@@ -269,6 +263,14 @@ client.on('message', async (msg) => {
         chat.sendMessage(getCommandsList());
       }
     }
+  }
+});
+
+client.on('message', async (message) => {
+  console.log('📩 رسالة واردة:', message.body);
+
+  if (message.body === 'ping') {
+    await message.reply('pong ✅');
   }
 });
 

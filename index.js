@@ -176,10 +176,26 @@ cron.schedule('0 20 * * *', () => {
     data.subscribers.forEach(id => client.sendMessage(id, "مساء الخير! اكتب 'نكتة' عشان نضحك.").catch(()=>{}));
 }, { timezone: 'Africa/Khartoum' });
 
+// معالجة QR Code
 client.on('qr', async qr => {
-    console.log('📌 QR Code Generated');
-    await QRCode.toFile(path.join(__dirname, 'qr.png'), qr);
+    try {
+        console.log('📌 تم توليد QR — جارٍ رفعه...');
+        const qrPath = path.join(__dirname, 'qr.png');
+        await QRCode.toFile(qrPath, qr);
+        console.log('Scan the QR code found in root folder: qr.png');
+        
+        // رفع الصورة إذا توفر المفتاح
+        if (IMGBB_KEY) {
+            const form = new FormData();
+            form.append('image', fs.createReadStream(qrPath));
+            const resp = await axios.post(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, form, { headers: form.getHeaders() });
+            if (resp.data?.data?.url) console.log('✅ رابط الـ QR:', resp.data.data.url);
+        }
+        // حذف الملف لاحقاً (اختياري، تركته لكي تراه)
+        // fs.unlinkSync(qrPath); 
+    } catch (err) { console.error('❌ خطأ رفع QR:', err); }
 });
+
 
 client.on('ready', () => {
     console.log('✅ كيدي جاهز!');

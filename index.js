@@ -15,7 +15,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 let data = {};
 if (fs.existsSync(DATA_FILE)) {
     try {
-        data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+        data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     } catch (error) {
         console.error('❌ خطأ في قراءة ملف البيانات:', error);
         data = {};

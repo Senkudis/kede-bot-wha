@@ -15,7 +15,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 let data = {};
 if (fs.existsSync(DATA_FILE)) {
     try {
-        data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
     } catch (error) {
         console.error('❌ خطأ في قراءة ملف البيانات:', error);
         data = {};
@@ -142,24 +142,31 @@ async function getMarketStatus() {
   return 'سوق الأسهم اليوم: ... (ميزة قيد التطوير)';
 }
 
-
 // تهيئة عميل الواتساب
 const client = new Client({
+  authStrategy: new LocalAuth({
+    clientId: "KedeBot" // You can specify a client id if you want to run multiple sessions
+  }),
+  // Other client options
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2413.51-beta.html',
+  },
   puppeteer: {
-    headless: true,
+    headless: "new",
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu',
+      '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--single-process'
+      '--disable-gpu',
+      '--window-size=1920,1080'
     ],
-    protocolTimeout: 60000 // مهم
+    defaultViewport: null
   }
 });
-
 
 let prayerJobs = [];
 
@@ -236,8 +243,7 @@ function getCommandsList() {
 - العب رقم: لعبة تخمين رقم من 1-10
 - لغز: سؤال تريفيا
 - حجر، ورق، مقص: لعبة حجر ورق مقص
-- ذكاء:دردش مع نظام الai الخاص بي كيدي
-- تخيل : امر لتوليد صور بالذكاء الصطناعي
+- ذكاء [سؤالك]: تفاعل مع ذكاء اصطناعي
 - طقس [اسم المدينة]: لمعرفة حالة الطقس
 - ترجم [النص] إلى [اللغة]: لترجمة النص
 - التاريخ: لمعرفة التاريخ اليوم
@@ -263,14 +269,6 @@ client.on('message', async (msg) => {
         chat.sendMessage(getCommandsList());
       }
     }
-  }
-});
-
-client.on('message', async (message) => {
-  console.log('📩 رسالة واردة:', message.body);
-
-  if (message.body === 'ping') {
-    await message.reply('pong ✅');
   }
 });
 
@@ -389,48 +387,18 @@ client.on('message', async msg => {
     return msg.reply(`أنا اخترت ${botChoice} — ${result}`);
   }
 
-  // --- أمر الذكاء الاصطناعي النصي (بديل OpenAI) ---
   if (body.startsWith('ذكاء')) {
-    const prompt = body.slice(4).trim(); // تعديل الرقم ليتناسب مع طول الكلمة
-    if (!prompt) return msg.reply('اكتب سؤالك بعد كلمة ذكاء، مثلاً: ذكاء من هو مخترع الكهرباء؟');
-    
-    // إرسال رد مبدئي ليعرف المستخدم أن البوت يفكر (اختياري)
-    msg.reply('جارٍ التفكير... 🧠'); 
-
-    const response = await getPollinationsText(prompt);
-    return msg.reply(response);
-  }
-
-  // --- أمر تخيل (توليد الصور) ---
-  if (body.startsWith('تخيل')) {
-    const prompt = body.slice(4).trim();
-    if (!prompt) return msg.reply('اكتب وصف الصورة بعد كلمة تخيل، مثلاً: تخيل قطة في الفضاء');
-
+    const prompt = body.slice(6).trim();
     try {
-        // إنشاء الصورة
-        const base64Image = await getPollinationsImage(prompt);
-        
-        if (base64Image) {
-            const media = new MessageMedia('image/jpeg', base64Image);
-            return client.sendMessage(from, media, { caption: `🖼️ *تخيل:* ${prompt}\n🤖 *موديل:* Flux` });
-        } else {
-            return msg.reply('عذراً، حدث خطأ أثناء إنشاء الصورة.');
-        }
+      const resp = await axios.post(`https://api.openai.com/v1/chat/completions`, {
+  model: "gpt-3.5-turbo",
+  messages: [{ role: "user", content: prompt }]
+}, { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }); // Corrected line
+      return msg.reply(resp.data.choices[0].message.content);
     } catch (err) {
-        return msg.reply('حدث خطأ غير متوقع.');
+      console.error(err);
+      return msg.reply('حصل خطأ في التواصل مع الذكاء الاصطناعي.');
     }
-  }
-
-  // --- أمر صورة (صور عشوائية فقط) ---
-  // يمكنك الإبقاء عليه كما هو أو حذفه، لكن "تخيل" هو الأقوى الآن
-  if (body === 'صورة') {
-     // نفس كودك القديم إذا أردت إبقاءه للصور العشوائية
-     try {
-       const resp = await axios.get('https://picsum.photos/200/300', { responseType: 'arraybuffer' });
-       return client.sendMessage(from, new MessageMedia('image/jpeg', Buffer.from(resp.data).toString('base64')));
-     } catch {
-       return msg.reply('حصل خطأ أثناء جلب الصورة.');
-     }
   }
 
   if (body.startsWith('طقس ')) {
@@ -497,10 +465,6 @@ client.on('group_join', async (notification) => {
     );
     }
 });
-client.on('ready', () => {
-  console.log('✅ البوت جاهز ويستقبل رسائل');
-});
-
 
 // حفظ البيانات عند إغلاق البرنامج
 process.on('SIGINT', () => {

@@ -103,43 +103,42 @@ async function googleTranslate(text, targetLang = 'en') {
 
 async function getPollinationsText(userText, history = []) {
     try {
-        console.log("--- 1. تحضير السؤال للذكاء الاصطناعي ---");
-        
+        console.log("⏳ 1. دخلنا دالة الذكاء الاصطناعي...");
+
         let historyPrompt = history.map(m => `${m.role === 'user' ? 'المستخدم' : 'كيدي'}: ${m.content}`).join('\n');
         const fullPrompt = `${BOT_PERSONA}\n\n${historyPrompt}\nالمستخدم: ${userText}\nكيدي:`;
 
-        console.log("--- 2. جاري إرسال الطلب (POST) ---");
+        console.log("🚀 2. جاري الإرسال لسيرفر Pollinations...");
 
-        // ضفت timeout عشان لو طول يفصل وما يعلق البوت
+        // حددنا مهلة 15 ثانية بس عشان لو علق يفصل ويديك خبر
         const response = await axios.post('https://text.pollinations.ai/', {
             messages: [
                 { role: 'user', content: fullPrompt }
             ],
-            model: 'openai'
+            model: 'openai' 
         }, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 60000 // مهلة 60 ثانية
+            timeout: 15000 // 15 ثانية فقط
         });
 
-        console.log("--- 3. وصل الرد من السيرفر ---");
-        console.log("نوع البيانات:", typeof response.data);
-        console.log("الرد:", response.data);
-
-        // تأكد إن الرد نص وليس كائن (Object)
-        if (typeof response.data === 'object') {
-             // لو رجع JSON ممكن يكون الرد جوه خاصية زي content
-             return JSON.stringify(response.data); 
+        console.log("✅ 3. الرد وصل!");
+        
+        // استخراج الرد بحذر
+        let reply = response.data;
+        if (typeof reply === 'object') {
+             reply = reply.choices ? reply.choices[0].message.content : JSON.stringify(reply);
         }
 
-        return response.data;
+        return reply;
 
     } catch (error) {
-        console.error("!!! خطأ في دالة الذكاء الاصطناعي !!!");
-        console.error(error.message);
-        if (error.response) {
-            console.error("بيانات الخطأ:", error.response.data);
+        console.log("❌ حصل خطأ:");
+        if (error.code === 'ECONNABORTED') {
+            console.log("⏰ الوقت انتهى! السيرفر اتأخر في الرد.");
+            return "معليش، النت شكلو تقيل، السيرفر اتأخر في الرد.";
         }
-        return "معليش، في مشكلة تقنية حالياً.";
+        console.error(error.message);
+        return "في مشكلة في الاتصال بالذكاء الاصطناعي حالياً.";
     }
 }
 

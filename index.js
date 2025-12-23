@@ -115,7 +115,7 @@ async function getPollinationsText(userText, history = []) {
             messages: [
                 { role: 'user', content: fullPrompt }
             ],
-            model: 'gpt-4o'
+            model: 'openai'
         }, {
             headers: { 'Content-Type': 'application/json' },
             timeout: 60000 // مهلة 60 ثانية

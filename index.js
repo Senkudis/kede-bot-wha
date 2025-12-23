@@ -25,6 +25,7 @@ if (!Array.isArray(data.subscribers)) data.subscribers = [];
 if (!data.pendingQuiz || typeof data.pendingQuiz !== 'object') data.pendingQuiz = {};
 if (!data.pendingGames || typeof data.pendingGames !== 'object') data.pendingGames = {};
 if (!data.stats || typeof data.stats !== 'object') data.stats = {};
+if (!data.conversationHistory || typeof data.conversationHistory !== 'object') data.conversationHistory = {};
 if (!data.groupStats || typeof data.groupStats !== 'object') data.groupStats = {};
 if (!Array.isArray(data.welcomedChatsPrivate)) data.welcomedChatsPrivate = [];
 if (!Array.isArray(data.welcomedChatsGroups)) data.welcomedChatsGroups = [];
@@ -51,15 +52,27 @@ const triviaQuestions = [
 ];
 
 const prayerReminders = [
-  "قوموا يا عباد الله إلى الصلاة 🙏",
+  "قوموا يا عباد الله إلى الصلاة ",
   "حيّ على الصلاة، حيّ على الفلاح 🕌",
   "الله أكبر، وقت السجود قد حان 🕋",
   "الصلاة نور وراحة للروح، لا تفوّتوها",
   "هلمّوا إلى ذكر الله ولقاء الرحمن",
-  "أقم الصلاة لذكري، وارتاح قلبك"
+  "أقم الصلاة لذكر الله، وارح قلبك"
 ];
 
 const greetings = ["صباح الخير يا زول! 🌞", "صبحك الله بالخير!", "صباح النور يا الغالي!"];
+
+// ===== 2.5. أنماط التخيل =====
+const IMAGE_STYLES = {
+    'انمي': ', anime style, vibrant colors, studio ghibli',
+    'واقعي': ', photorealistic, 8k, detailed, cinematic lighting',
+    'فن_بكسل': ', pixel art, 8-bit, retro game style',
+    'زيتي': ', oil painting, thick brushstrokes, masterpiece',
+    'مائي': ', watercolor painting, soft edges, delicate',
+    'سايبربانك': ', cyberpunk, neon lights, futuristic city, dark atmosphere',
+    'فضاء': ', space art, nebula, stars, epic scale',
+    'رسم': ', pencil sketch, detailed drawing, black and white'
+};
 
 // شخصية البوت
 const BOT_PERSONA = `
@@ -88,14 +101,16 @@ async function googleTranslate(text, targetLang = 'en') {
     } catch { return text; }
 }
 
-async function getPollinationsText(userText) {
+async function getPollinationsText(userText, history = []) {
     try {
-        // ندمج الشخصية
-        const fullPrompt = `${BOT_PERSONA}\n\nالمستخدم: ${userText}\nكيدي:`;
+        // 1. بناء سجل المحادثات
+        let historyPrompt = history.map(m => `${m.role === 'user' ? 'المستخدم' : 'كيدي'}: ${m.content}`).join('\n');
         
-        // التحديث: أضفنا ?model=openai لنضمن استخدام أذكى موديل متاح
-        // واستخدمنا encodeURIComponent عشان الكلام العربي ما يخرب الرابط
-        const url = `https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`;
+        // 2. دمج الشخصية والسجل والسؤال الحالي
+        const fullPrompt = `${BOT_PERSONA}\n\n${historyPrompt}\nالمستخدم: ${userText}\nكيدي:`;
+        
+        // 3. استدعاء API مع موديل GPT-4o
+        const url = `https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=gpt-4o`;
         
         const response = await axios.get(url);
         return response.data;
@@ -105,15 +120,18 @@ async function getPollinationsText(userText) {
     }
 }
 
-async function getPollinationsImage(arabicPrompt) {
+async function getPollinationsImage(arabicPrompt, styleSuffix = '') {
     try {
-        const englishPrompt = await googleTranslate(arabicPrompt, 'en');
-        // التعديل هنا: أضفنا ?model=flux للحصول على أفضل جودة صور حالياً
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(englishPrompt)}?model=flux`;
+        const englishPrompt = await googleTranslate(arabicPrompt, 'en') + styleSuffix;
+        // التعديل هنا: استخدام موديل nano-banana
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(englishPrompt)}?model=nano-banana`;
         
         const response = await axios.get(url, { responseType: 'arraybuffer' });
         return Buffer.from(response.data).toString('base64');
-    } catch { return null; }
+    } catch (error) { 
+        console.error("Image Error:", error.message);
+        return null; 
+    }
 }
 
 async function getWeather(city) {
@@ -211,7 +229,7 @@ client.on('ready', () => {
 
 // قائمة الأوامر
 function getCommandsList() {
-  return `🤖 *أوامر كيدي v2.5 (النسخة الكاملة)*
+  return `🤖 *أوامر كيدي v2.5 *
 
 🕌 *الدين والتذكيرات:*
 - اشترك: تفعيل تذكيرات الصلاة
@@ -223,8 +241,9 @@ function getCommandsList() {
 - حجر، ورق، مقص
 
 🧠 *الذكاء:*
-- ذكاء [سؤال]: ونسة مع كيدي
-- تخيل [وصف]: رسم صور (يدعم العربي)
+- كيدي [سؤال]: ونسة مع كيدي (GPT-4o وبذاكرة سياقية)
+- تخيل [وصف] [نمط]: رسم صور (Nano Banana وبأنماط جاهزة)
+- حلل [نص/صورة]: تلخيص أو تحليل محتوى (باستخدام GPT-4o)
 - ترجم [نص]: ترجمة 
 
 📊 *أخرى:*
@@ -287,13 +306,40 @@ client.on('message', async (msg) => {
     if (body === 'اوامر') return msg.reply(getCommandsList());
     if (body === 'كيدي') return msg.reply(pickRandom(["حبابك يا زول!", "آمرني!", "موجود، كيف أقدر أخدمك؟"]));
     
+    // 5.1. نداء الذكاء الجديد: كيدي [سؤال]
+    if (body.startsWith('كيدي ')) {
+        const userQuery = body.slice(5).trim();
+        if (!userQuery) return msg.reply('يا زول، أسألني سؤال عشان أجاوبك!');
+
+        // 1. جلب سجل المحادثة
+        const chatHistory = data.conversationHistory[from] || [];
+        
+        // 2. استدعاء الذكاء الاصطناعي مع سجل المحادثة
+        const res = await getPollinationsText(userQuery, chatHistory);
+        
+        // 3. تحديث سجل المحادثة
+        // إضافة رسالة المستخدم
+        chatHistory.push({ role: 'user', content: userQuery });
+        // إضافة رد البوت
+        chatHistory.push({ role: 'bot', content: res });
+        
+        // الاحتفاظ بآخر 5 دورات (10 رسائل)
+        while (chatHistory.length > 10) {
+            chatHistory.shift();
+        }
+        
+        data.conversationHistory[from] = chatHistory;
+        saveData();
+
+        return msg.reply(res);
+    }
+    
     // 4. الترفيه والنكت
     if (body === 'نكتة') return msg.reply(pickRandom(jokes));
     
    if (body === 'معلومة') {
         const facts = [
             // معلومات سودانية 🇸🇩
-            "هل تعلم أن السودان ينتج حوالي 80% من الصمغ العربي في العالم؟ ويدخل في صناعة المشروبات الغازية والأدوية.",
             "السودان يمتلك أهرامات أكثر من مصر (أكثر من 200 هرم) في منطقة مروي والبجراوية.",
             "تعتبر منطقة 'المقرن' في الخرطوم النقطة التي يلتقي فيها النيل الأبيض بالنيل الأزرق ليشكلوا نهر النيل العظيم.",
             "أول امرأة برلمانية في أفريقيا والشرق الأوسط كانت سودانية، وهي الأستاذة فاطمة أحمد إبراهيم.",
@@ -387,22 +433,60 @@ client.on('message', async (msg) => {
         return msg.reply(`أنا اخترت: ${botC}\nالنتيجة: ${res}`);
     }
 
-    // 6. الذكاء والخدمات
-    if (body.startsWith('ذكاء ')) {
-        const res = await getPollinationsText(body.slice(5));
-        return msg.reply(res);
-    }
+    // 6. الذكاء والخدمات (تم إلغاء أمر "ذكاء" واستبداله بـ "كيدي [سؤال]")
 
     if (body.startsWith('تخيل ')) {
+        const promptText = body.slice(5).trim();
+        if (!promptText) return msg.reply('يا زول، أديني وصف عشان أقدر أتخيل!');
+
+        let styleSuffix = '';
+        let finalPrompt = promptText;
+        
+        // البحث عن نمط في نهاية الوصف
+        const parts = promptText.split(/\s+/);
+        const lastWord = parts[parts.length - 1].toLowerCase();
+        
+        if (IMAGE_STYLES[lastWord]) {
+            styleSuffix = IMAGE_STYLES[lastWord];
+            finalPrompt = parts.slice(0, -1).join(' '); // إزالة الكلمة الأخيرة (النمط) من الوصف
+        }
+
         await msg.reply('🎨 جاري الرسم...');
-        const b64 = await getPollinationsImage(body.slice(5));
+        const b64 = await getPollinationsImage(finalPrompt, styleSuffix);
+        
         if (b64) {
             const media = new MessageMedia('image/jpeg', b64);
-            client.sendMessage(from, media, { caption: `🖼️ ${body}` });
+            client.sendMessage(from, media, { caption: `🖼️ ${promptText}` });
         } else msg.reply('فشل الرسم، حاول تاني.');
     }
 
     if (body.startsWith('ترجم ')) return msg.reply(await googleTranslate(body.slice(5)));
+    
+    // الأمر الجديد: تحليل/تلخيص
+    if (body.startsWith('حلل ')) {
+        const textToAnalyze = body.slice(4).trim();
+        if (!textToAnalyze && !msg.hasMedia) return msg.reply('يا زول، أديني نص أو صورة عشان أحللها!');
+
+        let analysisPrompt = '';
+        let content = '';
+        
+        if (msg.hasMedia) {
+            // لا يمكن تحليل الصور مباشرة عبر API المستخدم (Pollinations)
+            // لذا سنطلب من المستخدم وصف الصورة أو تلخيصها
+            analysisPrompt = 'أرجو وصف الصورة المرفقة أو تلخيص محتواها.';
+            content = 'صورة مرفقة';
+            return msg.reply('معليش يا زول، حالياً ما بقدر أحلل الصور مباشرة. ممكن توصف لي الصورة أو تلخص النص المرفق؟');
+        } else {
+            content = textToAnalyze;
+            analysisPrompt = `حلل أو لخص النص التالي بأسلوب مرح ومختصر:\n\n"${textToAnalyze}"`;
+        }
+
+        await msg.reply('🧠 جاري التحليل...');
+        
+           // نستخدم دالة الذكاء النصي الموجودة
+        const res = await getPollinationsText(analysisPrompt);pt);
+        return msg.reply(res);
+    }
     
     if (body.startsWith('طقس ')) return msg.reply(await getWeather(body.slice(4).trim()));
     
@@ -423,7 +507,8 @@ client.on('message', async (msg) => {
         for (const [id, count] of sorted) {
             // استخراج الرقم فقط (يحذف @c.us)
             const number = id.split('@')[0]; 
-            report += `${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🎖️'} +${number}: ${count} رسالة\n`;
+            const contactName = await getContactNameOrNumber(id);
+            report += `${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🎖️'} ${contactName} (+${number}): ${count} رسالة\n`;
             rank++;
         }
         return msg.reply(report);

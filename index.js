@@ -484,7 +484,7 @@ client.on('message', async (msg) => {
         await msg.reply('🧠 جاري التحليل...');
         
            // نستخدم دالة الذكاء النصي الموجودة
-        const res = await getPollinationsText(analysisPrompt);pt);
+        const res = await getPollinationsText(analysisPrompt);
         return msg.reply(res);
     }
     

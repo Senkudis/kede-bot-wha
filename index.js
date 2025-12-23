@@ -103,19 +103,33 @@ async function googleTranslate(text, targetLang = 'en') {
 
 async function getPollinationsText(userText, history = []) {
     try {
-        // 1. بناء سجل المحادثات
+        // 1. بناء سجل المحادثات (زي ما هو)
         let historyPrompt = history.map(m => `${m.role === 'user' ? 'المستخدم' : 'كيدي'}: ${m.content}`).join('\n');
         
-        // 2. دمج الشخصية والسجل والسؤال الحالي
+        // 2. دمج الشخصية والسجل والسؤال (زي ما هو)
         const fullPrompt = `${BOT_PERSONA}\n\n${historyPrompt}\nالمستخدم: ${userText}\nكيدي:`;
         
-        // 3. استدعاء API مع موديل GPT-4o
-        const url = `https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=gpt-4o`;
-        
-        const response = await axios.get(url);
+        // 3. التغيير هنا: استخدام POST بدلاً من GET
+        // بنرسل البيانات بصيغة JSON عشان تستحمل نصوص طويلة
+        const response = await axios.post('https://text.pollinations.ai/', {
+            messages: [
+                { role: 'user', content: fullPrompt }
+            ],
+            model: 'gpt-4o'
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // في Pollinations، لما تستخدم POST، الرد بيرجع نص عادي (String) عادةً
         return response.data;
+
     } catch (error) {
         console.error("AI Error:", error.message);
+        // لو عايز تفاصيل أكتر عن الخطأ ممكن تطبع error.response.data
+        if (error.response) console.error("Error Details:", error.response.data);
+        
         return "معليش يا زول، الشبكة الليلة كعبة شوية، جرب تاني!";
     }
 }
@@ -229,7 +243,7 @@ client.on('ready', () => {
 
 // قائمة الأوامر
 function getCommandsList() {
-  return `🤖 *أوامر كيدي v2.5 *
+  return `🤖 *أوامر كيدي v2.5*
 
 🕌 *الدين والتذكيرات:*
 - اشترك: تفعيل تذكيرات الصلاة

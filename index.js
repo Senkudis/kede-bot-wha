@@ -103,34 +103,43 @@ async function googleTranslate(text, targetLang = 'en') {
 
 async function getPollinationsText(userText, history = []) {
     try {
-        // 1. بناء سجل المحادثات (زي ما هو)
+        console.log("--- 1. تحضير السؤال للذكاء الاصطناعي ---");
+        
         let historyPrompt = history.map(m => `${m.role === 'user' ? 'المستخدم' : 'كيدي'}: ${m.content}`).join('\n');
-        
-        // 2. دمج الشخصية والسجل والسؤال (زي ما هو)
         const fullPrompt = `${BOT_PERSONA}\n\n${historyPrompt}\nالمستخدم: ${userText}\nكيدي:`;
-        
-        // 3. التغيير هنا: استخدام POST بدلاً من GET
-        // بنرسل البيانات بصيغة JSON عشان تستحمل نصوص طويلة
+
+        console.log("--- 2. جاري إرسال الطلب (POST) ---");
+
+        // ضفت timeout عشان لو طول يفصل وما يعلق البوت
         const response = await axios.post('https://text.pollinations.ai/', {
             messages: [
                 { role: 'user', content: fullPrompt }
             ],
             model: 'gpt-4o'
         }, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 60000 // مهلة 60 ثانية
         });
 
-        // في Pollinations، لما تستخدم POST، الرد بيرجع نص عادي (String) عادةً
+        console.log("--- 3. وصل الرد من السيرفر ---");
+        console.log("نوع البيانات:", typeof response.data);
+        console.log("الرد:", response.data);
+
+        // تأكد إن الرد نص وليس كائن (Object)
+        if (typeof response.data === 'object') {
+             // لو رجع JSON ممكن يكون الرد جوه خاصية زي content
+             return JSON.stringify(response.data); 
+        }
+
         return response.data;
 
     } catch (error) {
-        console.error("AI Error:", error.message);
-        // لو عايز تفاصيل أكتر عن الخطأ ممكن تطبع error.response.data
-        if (error.response) console.error("Error Details:", error.response.data);
-        
-        return "معليش يا زول، الشبكة الليلة كعبة شوية، جرب تاني!";
+        console.error("!!! خطأ في دالة الذكاء الاصطناعي !!!");
+        console.error(error.message);
+        if (error.response) {
+            console.error("بيانات الخطأ:", error.response.data);
+        }
+        return "معليش، في مشكلة تقنية حالياً.";
     }
 }
 
